@@ -16,8 +16,8 @@
 
 // C++ implementation of the heatmap code
 
-#ifndef HEATMAP_H
-#define HEATMAP_H
+#ifndef __HEATMAP_H
+#define __HEATMAP_H
 
 #include <math.h>
 
@@ -54,4 +54,4 @@ float* getHeatMapColor(float value)
 	return heatmap;
 }
 
-#endif // HEATMAP_H
+#endif // !__HEATMAP_H
