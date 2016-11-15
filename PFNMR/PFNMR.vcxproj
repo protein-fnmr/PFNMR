@@ -102,9 +102,9 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClCompile Include="GPUTypes.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="CmdLineHelpers.h" />
     <ClInclude Include="gif.h" />
     <ClInclude Include="Heatmap.h" />
+    <ClInclude Include="helper_string.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
