@@ -116,15 +116,20 @@ __global__ void sliceDielectricKernel(float *out, const float *inDensity, const 
 // entry point
 int main(int argc, char **argv)
 {
+    char *pdbFilePath = 0;
+
+    // print the header
     printf("PFNMR  Copyright(C) 2016 Jonathan Ellis and Bryan Gantt\n\n");
     printf("This program comes with ABSOLUTELY NO WARRANTY or guarantee of result accuracy.\n");
     printf("    This is free software, and you are welcome to redistribute it\n");
     printf("    under certain conditions; see LICENSE for details.\n\n");
 
+    // check if we hav any input or if "help" or "h" was one of them
     if (checkCmdLineFlag(argc, (const char **)argv, "help") ||
-        checkCmdLineFlag(argc, (const char **)argv, "?"))
+        checkCmdLineFlag(argc, (const char **)argv, "h") ||
+        argc < 2)
     {
-        printf("Usage: PFNMR pdbfile\n");
+        printf("Usage: PFNMR -file=pdbFile (Required)\n");
         printf("      -oD=OutDielectric (Optional, Default 4.0)\n");
         printf("      -rD=ReferenceDielectric (Optional, Default 80.4)\n");
         printf("      -rV=RelativeVarience (Optional, Default 0.93)\n");
@@ -132,27 +137,37 @@ int main(int argc, char **argv)
         return 0;
     }
 
+    // check if "file" was defined
+    if (checkCmdLineFlag(argc, (const char**)argv, "file"))
+    {
+        getCmdLineArgumentString(argc, (const char**)argv, "file", &pdbFilePath);
+    }
+    else
+    {
+        printf("The \"-file=pdbFile\" flag is required to run an analysis.\n");
+        printf("Run \"%s -help\" for more details.\n", argv[0]);
+
+        return 0;
+    }
+
     // start a timer for benchmarking
     clock_t startTime = clock();
-
-    string line;
 
     // read in the file
 #ifdef BENCHMARK
     ifstream inPdbFile("GroEL.pdb");
 #else
-    ifstream inPdbFile("YqhD_Apo.pdb");
+    ifstream inPdbFile(pdbFilePath);
 #endif // BENCHMARK
 
     // create a vector
     vector<Atom> atoms;
 
-    // set default pdbBounds
-    float pdbBounds[6] = { FLT_MAX, -FLT_MAX, FLT_MAX, -FLT_MAX, FLT_MAX, -FLT_MAX };
-
     // check if we could even open the file
     if (inPdbFile.is_open())
     {
+        string line;
+
         // read each line
         while (getline(inPdbFile, line))
         {
@@ -165,26 +180,28 @@ int main(int argc, char **argv)
 
                 // check the element first to see if we
                 // need to keep going or not
-                auto element = line.substr(76, 2);
+                auto element = trim(line.substr(76, 2));
 
                 // default vdw is -1.0f, so only check if we need to change it
                 // if it's not in the list, just break out (saves a lot of time)
-                if (curAtom.element == "H")
+                if (element == "H")
                     curAtom.vdw = 1.2f;
-                else if (curAtom.element == "ZN")
+                else if (element == "ZN")
                     curAtom.vdw = 1.39f;
-                else if (curAtom.element == "F")
+                else if (element == "F")
                     curAtom.vdw = 1.47f;
-                else if (curAtom.element == "O")
+                else if (element == "O")
                     curAtom.vdw = 1.52f;
-                else if (curAtom.element == "N")
+                else if (element == "N")
                     curAtom.vdw = 1.55f;
-                else if (curAtom.element == "C")
+                else if (element == "C")
                     curAtom.vdw = 1.7f;
-                else if (curAtom.element == "S")
+                else if (element == "S")
                     curAtom.vdw = 1.8f;
                 else
-                    break;
+                    continue;
+
+                curAtom.element = element;
 
                 auto name = line.substr(12, 4);
                 auto resName = line.substr(17, 3);
@@ -202,7 +219,6 @@ int main(int argc, char **argv)
                 curAtom.z = stof(line.substr(46, 8));
                 curAtom.occupancy = stof(line.substr(54, 6));
                 curAtom.tempFactor = stof(line.substr(60, 6));
-                curAtom.element = trim(element);
                 curAtom.charge = trim(charge);
 
                 // if we have a valid vdw, add it to the vector
@@ -218,12 +234,15 @@ int main(int argc, char **argv)
     }
     else
     {
-        cout << "Unable to open YqhD_Apo.pdb\n";
+        cout << "Unable to open " << pdbFilePath << "\n";
         return 1;
     }
 
     // get the count
     auto nAtoms = atoms.size();
+
+    // set default pdbBounds
+    float pdbBounds[6] = { FLT_MAX, -FLT_MAX, FLT_MAX, -FLT_MAX, FLT_MAX, -FLT_MAX };
 
     if (nAtoms != 0)
     {
@@ -278,6 +297,7 @@ int main(int argc, char **argv)
 
         // this is doing X. Purely for benchmark purposes
         // logic needs to be added later for oter directions
+        string gifOutputPath = "x_slice_";
         auto maxSpan = max(yspan, zspan);
         auto pointStep = maxSpan / (IMG_SIZE - 1);
 
@@ -328,7 +348,12 @@ int main(int argc, char **argv)
 #ifdef BENCHMARK
         GifBegin(&gifWriter, "x_slice_groel.gif", IMG_SIZE, IMG_SIZE, GIF_DELAY);
 #else
-        GifBegin(&gifWriter, "x_slice_yqhd_apo.gif", IMG_SIZE, IMG_SIZE, GIF_DELAY);
+        gifOutputPath.append(pdbFilePath);
+        gifOutputPath.resize(gifOutputPath.length() - 4); // strip the .pdb
+        gifOutputPath.append(".gif");
+        replace(gifOutputPath.begin(), gifOutputPath.end(), ' ', '_'); // replace any spaces that might be in the file
+
+        GifBegin(&gifWriter, gifOutputPath.c_str(), IMG_SIZE, IMG_SIZE, GIF_DELAY);
 #endif // BENCHMARK
 
         // do NUM_SLICES slices
