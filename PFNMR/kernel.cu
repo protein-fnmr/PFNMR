@@ -77,7 +77,7 @@ cudaError_t sliceDensityCuda(float *out, const GPUAtom *inAtoms, const GridPoint
     const float variance, const size_t nAtoms, const size_t nGridPoints, cudaDeviceProp &deviceProp);
 
 cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDielectric,
-    const float outDialectric, const size_t nAtoms, const size_t nGridPoints, cudaDeviceProp &deviceProp);
+    const float outdielectric, const size_t nAtoms, const size_t nGridPoints, cudaDeviceProp &deviceProp);
 
 // the density kernel that is ran on the GPU
 __global__ void sliceDensityKernel(float *out, const GPUAtom *inAtoms, const GridPoint *inGrid,
@@ -99,7 +99,7 @@ __global__ void sliceDensityKernel(float *out, const GPUAtom *inAtoms, const Gri
 
 // the dielectric kernel that is ran on the GPU
 __global__ void sliceDielectricKernel(float *out, const float *inDensity, const float refDielectric,
-    const float outDialectric, const size_t nAtoms, const size_t nGridPoints)
+    const float outdielectric, const size_t nAtoms, const size_t nGridPoints)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     float moldensity = 1.0f;
@@ -109,7 +109,7 @@ __global__ void sliceDielectricKernel(float *out, const float *inDensity, const 
         for (int j = 0; j < nAtoms; ++j)
             moldensity *= inDensity[(j * nGridPoints) + i];
 
-        out[i] = ((1.0f - moldensity) * refDielectric) + (moldensity * outDialectric);
+        out[i] = ((1.0f - moldensity) * refDielectric) + (moldensity * outdielectric);
     }
 }
 
@@ -124,15 +124,15 @@ int main(int argc, char **argv)
     cout << "    This is free software, and you are welcome to redistribute it" << endl;
     cout << "    under certain conditions; see LICENSE for details." << endl << endl;
 
-    // check if we hav any input or if "help" or "h" was one of them
+    // check if we have any input or if "help" or "h" was one of them
     if (checkCmdLineFlag(argc, (const char **)argv, "help") ||
         checkCmdLineFlag(argc, (const char **)argv, "h") ||
         argc < 2)
     {
         cout << "Usage: " << argv[0] << " -file=pdbFile (Required)" << endl;
-        cout << "      -oD=OutDielectric (Optional, Default 4.0)" << endl;
-        cout << "      -rD=ReferenceDielectric (Optional, Default 80.4)" << endl;
-        cout << "      -rV=RelativeVarience (Optional, Default 0.93)\n" << endl;
+        cout << "      -oD=OutDielectric (Optional, Default 84.0)" << endl;
+        cout << "      -rD=ReferenceDielectric (Optional, Default 4.0)" << endl;
+        cout << "      -rV=RelativeVarience (Optional, Default 0.93)" << endl << endl;
 
         return 0;
     }
@@ -147,7 +147,61 @@ int main(int argc, char **argv)
         cout << "The \"-file=pdbFile\" flag is required to run an analysis." << endl;
         cout << "Run \"" << argv[0] << " -help\" for more details." << endl;
 
-        return 0;
+        return 1;
+    }
+
+    // define some default constants
+    auto outDielectric = 84.0f;
+    auto refDielectric = 4.0f;
+    auto relVariance = 0.93f;
+
+    // check for the optional parameters
+    if (checkCmdLineFlag(argc, (const char**)argv, "oD"))
+    {
+        outDielectric = getCmdLineArgumentFloat(argc, (const char**)argv, "oD");
+
+        if (outDielectric < 0.0f)
+        {
+            cout << "Error: Value for Out Dielectric must be positive." << endl;
+            cout << "Exiting..." << endl;
+
+            return 1;
+        }
+    }
+
+    if (checkCmdLineFlag(argc, (const char**)argv, "rD"))
+    {
+        refDielectric = getCmdLineArgumentFloat(argc, (const char**)argv, "rD");
+
+        if (refDielectric < 0.0f)
+        {
+            cout << "Error: Value for Reference Dielectric must be positive." << endl;
+            cout << "Exiting..." << endl;
+
+            return 1;
+        }
+    }
+
+    // check that ref is less than out
+    if (refDielectric >= outDielectric)
+    {
+        cout << "Error: Reference Dielectric must be less than Out Dielectric." << endl;
+        cout << "Exiting..." << endl;
+
+        return 1;
+    }
+
+    if (checkCmdLineFlag(argc, (const char**)argv, "rV"))
+    {
+        relVariance = getCmdLineArgumentFloat(argc, (const char**)argv, "rV");
+
+        if (relVariance < 0.0f)
+        {
+            cout << "Error: Value for Relative Varience must be positive." << endl;
+            cout << "Exiting..." << endl;
+
+            return 1;
+        }
     }
 
     // start a timer for benchmarking
@@ -264,11 +318,6 @@ int main(int argc, char **argv)
             else if (atoms[i].z > pdbBounds[5])
                 pdbBounds[5] = atoms[i].z;
         }
-
-        // define some constants
-        const auto outDielectric = 84.0f;
-        const auto refDielectric = 4.0f;
-        const auto relVariance = 0.93f;
 
         // this shouldn't be an issue though because we know that size > 0
         auto gpuAtoms = new GPUAtom[nAtoms];
@@ -574,7 +623,7 @@ Error:
 
 // set up the gpu for the dielectric calculations
 cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDielectric,
-    const float outDialectric, const size_t nAtoms, const size_t nGridPoints, cudaDeviceProp &deviceProp)
+    const float outdielectric, const size_t nAtoms, const size_t nGridPoints, cudaDeviceProp &deviceProp)
 {
     // the device arrays
     float *dev_in = 0;
@@ -614,7 +663,7 @@ cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDiel
     int gridSize = min(16 * deviceProp.multiProcessorCount, gridY);
 
     // Launch a kernel on the GPU.
-    sliceDielectricKernel <<<gridSize, blockSize>>> (dev_out, dev_in, refDielectric, outDialectric, nAtoms, nGridPoints);
+    sliceDielectricKernel <<<gridSize, blockSize>>> (dev_out, dev_in, refDielectric, outdielectric, nAtoms, nGridPoints);
 
     // Check for any errors launching the kernel
     cudaStatus = cudaGetLastError();
