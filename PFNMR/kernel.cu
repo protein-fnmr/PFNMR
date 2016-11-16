@@ -119,20 +119,20 @@ int main(int argc, char **argv)
     char *pdbFilePath = 0;
 
     // print the header
-    printf("PFNMR  Copyright(C) 2016 Jonathan Ellis and Bryan Gantt\n\n");
-    printf("This program comes with ABSOLUTELY NO WARRANTY or guarantee of result accuracy.\n");
-    printf("    This is free software, and you are welcome to redistribute it\n");
-    printf("    under certain conditions; see LICENSE for details.\n\n");
+    cout << "PFNMR  Copyright(C) 2016 Jonathan Ellis and Bryan Gantt" << endl << endl;
+    cout << "This program comes with ABSOLUTELY NO WARRANTY or guarantee of result accuracy." << endl;
+    cout << "    This is free software, and you are welcome to redistribute it" << endl;
+    cout << "    under certain conditions; see LICENSE for details." << endl << endl;
 
     // check if we hav any input or if "help" or "h" was one of them
     if (checkCmdLineFlag(argc, (const char **)argv, "help") ||
         checkCmdLineFlag(argc, (const char **)argv, "h") ||
         argc < 2)
     {
-        printf("Usage: %s -file=pdbFile (Required)\n", argv[0]);
-        printf("      -oD=OutDielectric (Optional, Default 4.0)\n");
-        printf("      -rD=ReferenceDielectric (Optional, Default 80.4)\n");
-        printf("      -rV=RelativeVarience (Optional, Default 0.93)\n");
+        cout << "Usage: " << argv[0] << " -file=pdbFile (Required)" << endl;
+        cout << "      -oD=OutDielectric (Optional, Default 4.0)" << endl;
+        cout << "      -rD=ReferenceDielectric (Optional, Default 80.4)" << endl;
+        cout << "      -rV=RelativeVarience (Optional, Default 0.93)\n" << endl;
 
         return 0;
     }
@@ -144,8 +144,8 @@ int main(int argc, char **argv)
     }
     else
     {
-        printf("The \"-file=pdbFile\" flag is required to run an analysis.\n");
-        printf("Run \"%s -help\" for more details.\n", argv[0]);
+        cout << "The \"-file=pdbFile\" flag is required to run an analysis." << endl;
+        cout << "Run \"" << argv[0] << " -help\" for more details." << endl;
 
         return 0;
     }
@@ -312,7 +312,7 @@ int main(int argc, char **argv)
         // THIS WILL EVENTUALLY BE LOOPED FOR MULTI-GPU
         // Choose which GPU to run on, change this on a multi-GPU system.
         if (cudaSetDevice(0) != cudaSuccess) {
-            fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?\n");
+            cerr << "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?" << endl;
             goto noCuda;
         }
 
@@ -323,7 +323,7 @@ int main(int argc, char **argv)
 
         if (cudaResult != cudaSuccess)
         {
-            fprintf(stderr, "cudaGetDeviceProperties failed!\n");
+            cerr << "cudaGetDeviceProperties failed!" << endl;
             goto noCuda;
         }
 
@@ -333,7 +333,7 @@ int main(int argc, char **argv)
 
         if (cudaResult != cudaSuccess)
         {
-            fprintf(stderr, "cudaMemGetInfo failed!\n");
+            cerr << "cudaMemGetInfo failed!" << endl;
             goto noCuda;
         }
 
@@ -480,7 +480,7 @@ int main(int argc, char **argv)
     // tracing tools such as Nsight and Visual Profiler to show complete traces.
     auto cudaStatus = cudaDeviceReset();
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceReset failed!\n");
+        cerr << "cudaDeviceReset failed!" << endl;
         return 3;
     }
 
@@ -503,32 +503,32 @@ cudaError_t sliceDensityCuda(float *out, const GPUAtom *inAtoms, const GridPoint
     // Allocate GPU buffers for vectors.
     cudaStatus = cudaMalloc((void**)&dev_out, nAtoms * nGridPoints * sizeof(float));
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!\n");
+        cerr << "cudaMalloc failed!" << endl;
         goto Error;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_atom, nAtoms * sizeof(GPUAtom));
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!\n");
+        cerr << "cudaMalloc failed!" << endl;
         goto Error;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_grid, nGridPoints * sizeof(GridPoint));
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!\n");
+        cerr << "cudaMalloc failed!" << endl;
         goto Error;
     }
 
     // Copy input vectors from host memory to GPU buffers.
     cudaStatus = cudaMemcpy(dev_atom, inAtoms, nAtoms * sizeof(GPUAtom), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!\n");
+        cerr << "cudaMemcpy failed!" << endl;
         goto Error;
     }
 
     cudaStatus = cudaMemcpy(dev_grid, inGrid, nGridPoints * sizeof(GridPoint), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!\n");
+        cerr << "cudaMemcpy failed!" << endl;
         goto Error;
     }
 
@@ -543,7 +543,7 @@ cudaError_t sliceDensityCuda(float *out, const GPUAtom *inAtoms, const GridPoint
     // Check for any errors launching the kernel
     cudaStatus = cudaGetLastError();
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "density kernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+        cerr << "density kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
         goto Error;
     }
 
@@ -551,15 +551,15 @@ cudaError_t sliceDensityCuda(float *out, const GPUAtom *inAtoms, const GridPoint
     // any errors encountered during the launch.
     cudaStatus = cudaDeviceSynchronize();
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching density kernel!\n", cudaStatus);
-        printf("Cuda failure %s:%d: '%s'\n", __FILE__, __LINE__, cudaGetErrorString(cudaStatus));
+        cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching density kernel!" << endl;
+        cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
         goto Error;
     }
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(out, dev_out, nAtoms * nGridPoints * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!\n");
+        cerr << "cudaMemcpy failed!" << endl;
         goto Error;
     }
 
@@ -584,20 +584,20 @@ cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDiel
     // Allocate GPU buffers for vectors
     cudaStatus = cudaMalloc((void**)&dev_out, nGridPoints * sizeof(float));
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!\n");
+        cerr << "cudaMalloc failed!" << endl;
         goto Error;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_in, nAtoms * nGridPoints * sizeof(float));
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!\n");
+        cerr << "cudaMalloc failed!" << endl;
         goto Error;
     }
 
     // Copy input vectors from host memory to GPU buffers.
     cudaStatus = cudaMemcpy(dev_in, in, nAtoms * nGridPoints * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!\n");
+        cerr << "cudaMemcpy failed!" << endl;
         goto Error;
     }
 
@@ -619,7 +619,7 @@ cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDiel
     // Check for any errors launching the kernel
     cudaStatus = cudaGetLastError();
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "dielectric launch failed: %s\n", cudaGetErrorString(cudaStatus));
+        cerr << "dielectric kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
         goto Error;
     }
 
@@ -627,14 +627,15 @@ cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDiel
     // any errors encountered during the launch.
     cudaStatus = cudaDeviceSynchronize();
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching dielectric!\n", cudaStatus);
+        cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching density kernel!" << endl;
+        cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
         goto Error;
     }
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(out, dev_out, nGridPoints * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!\n");
+        cerr << "cudaMemcpy failed!" << endl;
         goto Error;
     }
 
