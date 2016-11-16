@@ -129,7 +129,7 @@ int main(int argc, char **argv)
         checkCmdLineFlag(argc, (const char **)argv, "h") ||
         argc < 2)
     {
-        printf("Usage: PFNMR -file=pdbFile (Required)\n");
+        printf("Usage: %s -file=pdbFile (Required)\n", argv[0]);
         printf("      -oD=OutDielectric (Optional, Default 4.0)\n");
         printf("      -rD=ReferenceDielectric (Optional, Default 80.4)\n");
         printf("      -rV=RelativeVarience (Optional, Default 0.93)\n");
