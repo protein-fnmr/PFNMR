@@ -25,8 +25,7 @@ using namespace std;
 class CSVReader {
 public:
     CSVReader::CSVReader();
-    int CSVReader::readChargeCSV(string chargefilepath, int residuecolumn, int atomcolumn, int chargecolumn);
-    int CSVReader::getHeaderInformation(string chargefilepath);
+    vector<vector<string>> CSVReader::readCSVFile(string filepath);
 };
 
 #endif

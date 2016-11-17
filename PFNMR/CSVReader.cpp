@@ -27,11 +27,8 @@
 
 using namespace std;
 
-vector<array<string,2>> chargedata;
-
 CSVReader::CSVReader() 
 {
-    cout << "CSVReader loaded." << endl;
 }
 
 //Splitting code found on http://stackoverflow.com/questions/30797769/splitting-a-string-but-keeping-empty-tokens-c
@@ -63,50 +60,11 @@ vector<string> split(const string &s, const string& delimiters) {
     return elems;
 }
 
-// TODO: It might be useful, once working on the command line GUI, to keep the charge csv file open so the use can be shown the header line and define the relevant column positions, then close the file out afterwards.  
-
-int CSVReader::getHeaderInformation(string chargefilepath)
+vector<vector<string>> CSVReader::readCSVFile(string filepath)
 {
-    if (chargefilepath.find_last_of(".") == string::npos) //Make sure a file was actually passed
-    {
-        cout << "Error: Charge CSV \"file\" passed doesn't appear to have an extension." << endl;
-        return 1;
-    }
-    if (!chargefilepath.substr(chargefilepath.find_last_of(".") + 1).compare(".csv")) //Make sure it's a .csv file
-    {
-        cout << "Error: Charge CSV file is not a .csv file." << endl;
-        return 1;
-    }
+    vector<vector<string>> csvcontents;
     //Start reading through the file and adding amino acids to the list
-    ifstream csvfile(chargefilepath);
-    if (csvfile.is_open()) //Can we open the file?
-    {
-        string line;
-        getline(csvfile, line);
-        auto linecontents = split(line,",");
-        cout << line.size() << endl;
-        for (int i = 0; i < linecontents.size(); ++i)
-        {
-            cout << "[" << i << "]: " << linecontents[i] << endl;
-        }
-    }
-    csvfile.close();
-}
-
-int CSVReader::readChargeCSV(string chargefilepath, int residuecolumn, int atomcolumn, int chargecolumn)
-{
-    if (chargefilepath.find_last_of(".") == string::npos) //Make sure a file was actually passed
-    {
-        cout << "Error: Charge CSV \"file\" passed doesn't appear to have an extension." << endl;
-        return 1;
-    }
-    if (!chargefilepath.substr(chargefilepath.find_last_of(".") + 1).compare(".csv")) //Make sure it's a .csv file
-    {
-        cout << "Error: Charge CSV file is not a .csv file." << endl;
-        return 1;
-    }
-    //Start reading through the file and adding amino acids to the list
-    ifstream csvfile(chargefilepath);
+    ifstream csvfile(filepath);
     if (csvfile.is_open()) //Can we open the file?
     {
         cout << "Reading CSV file to obtain charges." << endl;
@@ -115,27 +73,10 @@ int CSVReader::readChargeCSV(string chargefilepath, int residuecolumn, int atomc
         int i = 0;
         while (getline(csvfile, line)) //Read each line through the file
         {
-            
-            auto linecontents = split(line,",");
-            array<string, 2> entry;
-            if (linecontents[chargecolumn].empty())
-            {
-                cout << "Warning: No charge for " << linecontents[residuecolumn] << ":" << linecontents[atomcolumn] << " found.  Setting to 0." << endl;
-                entry = { linecontents[residuecolumn] + "-" + linecontents[atomcolumn], "0.0" };
-                i++;
-            }
-            else
-            {
-                entry = { linecontents[residuecolumn] + "-" + linecontents[atomcolumn], linecontents[chargecolumn] };
-            }
-            chargedata.push_back(entry);
+            auto linecontents = split(line, ",");
+            csvcontents.push_back(linecontents);
         }
     }
-    else
-    {
-        cout << "Error: Unable to read " << chargefilepath << endl;
-        return 1;
-    }
     csvfile.close();
-    return 0;
+    return csvcontents;
 }
