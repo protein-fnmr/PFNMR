@@ -26,10 +26,20 @@
 using namespace std;
 
 class PDBProcessor {
+
+private:
+    string pdbPath;
+    ifstream pdbStream;
+    bool isOpen = false;
+
 public:
-    PDBProcessor::PDBProcessor();
-    int PDBProcessor::getAtomsFromPDB(string pdbpath, vector<Atom> & atoms);
-    int PDBProcessor::getGPUAtomsFromPDB(string pdbpath, vector<GPUAtom> & gpuatoms);
+    PDBProcessor(string pdbPath);
+    ~PDBProcessor();
+
+    bool is_open() { return isOpen; }
+
+    //int PDBProcessor::getAtomsFromPDB(string pdbpath, vector<Atom> & atoms);
+    vector<GPUAtom> getGPUAtoms();
 };
 
 #endif

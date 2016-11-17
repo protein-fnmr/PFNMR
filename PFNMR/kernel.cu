@@ -35,21 +35,8 @@
 
 using namespace std;
 
-// run a benchmark for the program
-// comment out for normal use
-//#define BENCHMARK
-
-#ifdef BENCHMARK
-
-#define NUM_SLICES 100
-#define IMG_SIZE 500
-
-#else
-
 #define NUM_SLICES 10
 #define IMG_SIZE 300
-
-#endif // BENCHMARK
 
 #define IMG_SIZE_SQ (IMG_SIZE * IMG_SIZE)
 #define GIF_DELAY 10
@@ -189,21 +176,18 @@ int main(int argc, char **argv)
     // start a timer for benchmarking
     clock_t startTime = clock();
 
-    // read in the file
-#ifdef BENCHMARK
-    ifstream inPdbFile("GroEL.pdb");
-#else
-    ifstream inPdbFile(pdbFilePath);
-#endif // BENCHMARK
+    // read in a PDB file
+    PDBProcessor pdbProcessor(pdbFilePath);
 
-    // create a vector
-    vector<GPUAtom> atoms;
-    PDBProcessor pdbprocessor;
-    if (pdbprocessor.getGPUAtomsFromPDB(pdbFilePath, atoms))
-        return 1;
+    if (!pdbProcessor.is_open())
+    {
+        cout << "Failed to open " << pdbFilePath << ". Make sure the file exists or is accessible." << endl << "Exiting..." << endl;
+    }
+
+    auto gpuAtoms = pdbProcessor.getGPUAtoms();
 
     // get the count
-    auto nAtoms = atoms.size();
+    auto nAtoms = gpuAtoms.size();
 
     // set default pdbBounds
     float pdbBounds[6] = { FLT_MAX, -FLT_MAX, FLT_MAX, -FLT_MAX, FLT_MAX, -FLT_MAX };
@@ -213,31 +197,21 @@ int main(int argc, char **argv)
         // find the bounds
         for (size_t i = 0; i < nAtoms; ++i)
         {
-            if (atoms[i].x < pdbBounds[0])
-                pdbBounds[0] = atoms[i].x;
-            else if (atoms[i].x > pdbBounds[1])
-                pdbBounds[1] = atoms[i].x;
+            if (gpuAtoms[i].x < pdbBounds[0])
+                pdbBounds[0] = gpuAtoms[i].x;
+            else if (gpuAtoms[i].x > pdbBounds[1])
+                pdbBounds[1] = gpuAtoms[i].x;
 
-            if (atoms[i].y < pdbBounds[2])
-                pdbBounds[2] = atoms[i].y;
-            else if (atoms[i].y > pdbBounds[3])
-                pdbBounds[3] = atoms[i].y;
+            if (gpuAtoms[i].y < pdbBounds[2])
+                pdbBounds[2] = gpuAtoms[i].y;
+            else if (gpuAtoms[i].y > pdbBounds[3])
+                pdbBounds[3] = gpuAtoms[i].y;
 
-            if (atoms[i].z < pdbBounds[4])
-                pdbBounds[4] = atoms[i].z;
-            else if (atoms[i].z > pdbBounds[5])
-                pdbBounds[5] = atoms[i].z;
+            if (gpuAtoms[i].z < pdbBounds[4])
+                pdbBounds[4] = gpuAtoms[i].z;
+            else if (gpuAtoms[i].z > pdbBounds[5])
+                pdbBounds[5] = gpuAtoms[i].z;
         }
-
-        // TODO: This likely can all be put in the PDBProcessor function.
-        // this shouldn't be an issue though because we know that size > 0
-        auto gpuAtoms = new GPUAtom[nAtoms];
-        
-        // copy the atoms over
-        for (size_t i = 0; i < nAtoms; ++i)
-            gpuAtoms[i] = { atoms[i].x, atoms[i].y, atoms[i].z, atoms[i].vdw };
-
-        atoms.clear(); // we shouldn't need these anymore (or really at all?)
 
         // find the spans
         auto xspan = pdbBounds[1] - pdbBounds[0];
@@ -360,8 +334,10 @@ int main(int argc, char **argv)
                 auto densityOut = new float[nAtoms * nGpuGridPoint];
                 auto dielectricOut = new float[nGpuGridPoint];
 
+                auto gpuAtomsArray = &gpuAtoms[0];
+
                 // get all the densities for each pixel
-                cudaResult = sliceDensityCuda(densityOut, gpuAtoms, gpuGridPoints, relVariance, nAtoms, nGpuGridPoint, deviceProp);
+                cudaResult = sliceDensityCuda(densityOut, gpuAtomsArray, gpuGridPoints, relVariance, nAtoms, nGpuGridPoint, deviceProp);
                 if (cudaResult != cudaSuccess)
                 {
                     cout << "Failed to run density kernel." << endl;
@@ -428,7 +404,7 @@ int main(int argc, char **argv)
         delete[] gridPoints;
 
     noCuda:
-        delete[] gpuAtoms;
+
     }
     else
     {
