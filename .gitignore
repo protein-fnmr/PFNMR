@@ -4,7 +4,7 @@
 
 *.opendb
 PFNMR.VC.db
-/PFNMR/x64/Debug
+/PFNMR/x64
 /PFNMR/vc140.pdb
-/x64/Debug
-/.vs/PFNMR/v14
+/x64
+/.vs
