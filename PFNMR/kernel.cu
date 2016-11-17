@@ -26,6 +26,8 @@
 #include <tuple>
 #include <ctime>
 
+#include "PDBProcessor.h"
+#include "CSVReader.h"
 #include "GPUTypes.h"
 #include "gif.h"
 #include "Heatmap.h"
@@ -51,26 +53,6 @@ using namespace std;
 
 #define IMG_SIZE_SQ (IMG_SIZE * IMG_SIZE)
 #define GIF_DELAY 10
-
-// trimming stuff for when we read in a file
-string & ltrim(string & str)
-{
-    auto it2 = find_if(str.begin(), str.end(), [](char ch) { return !isspace<char>(ch, locale::classic()); });
-    str.erase(str.begin(), it2);
-    return str;
-}
-
-string & rtrim(string & str)
-{
-    auto it1 = find_if(str.rbegin(), str.rend(), [](char ch) { return !isspace<char>(ch, locale::classic()); });
-    str.erase(it1.base(), str.end());
-    return str;
-}
-
-string & trim(string & str)
-{
-    return ltrim(rtrim(str));
-}
 
 // empty definitions that are defined at the bottom later
 cudaError_t sliceDensityCuda(float *out, const GPUAtom *inAtoms, const GridPoint *inGrid,
@@ -131,7 +113,7 @@ int main(int argc, char **argv)
     {
         cout << "Usage: " << argv[0] << " -file=pdbFile (Required)" << endl;
         cout << "      -oD=OutDielectric (Optional, Default 84.0)" << endl;
-        cout << "      -rD=ReferenceDielectric (Optional, Default 4.0)" << endl;
+        cout << "      -iD=InternalDielectric (Optional, Default 4.0)" << endl;
         cout << "      -rV=RelativeVarience (Optional, Default 0.93)" << endl << endl;
 
         return 0;
@@ -152,7 +134,7 @@ int main(int argc, char **argv)
 
     // define some default constants
     auto outDielectric = 84.0f;
-    auto refDielectric = 4.0f;
+    auto inDielectric = 4.0f;
     auto relVariance = 0.93f;
 
     // check for the optional parameters
@@ -169,13 +151,13 @@ int main(int argc, char **argv)
         }
     }
 
-    if (checkCmdLineFlag(argc, (const char**)argv, "rD"))
+    if (checkCmdLineFlag(argc, (const char**)argv, "iD"))
     {
-        refDielectric = getCmdLineArgumentFloat(argc, (const char**)argv, "rD");
+        inDielectric = getCmdLineArgumentFloat(argc, (const char**)argv, "iD");
 
-        if (refDielectric < 0.0f)
+        if (inDielectric < 0.0f)
         {
-            cout << "Error: Value for Reference Dielectric must be positive." << endl;
+            cout << "Error: Value for Internal Dielectric must be positive." << endl;
             cout << "Exiting..." << endl;
 
             return 1;
@@ -183,9 +165,9 @@ int main(int argc, char **argv)
     }
 
     // check that ref is less than out
-    if (refDielectric >= outDielectric)
+    if (inDielectric >= outDielectric)
     {
-        cout << "Error: Reference Dielectric must be less than Out Dielectric." << endl;
+        cout << "Error: Internal Dielectric must be less than Out Dielectric." << endl;
         cout << "Exiting..." << endl;
 
         return 1;
@@ -215,82 +197,10 @@ int main(int argc, char **argv)
 #endif // BENCHMARK
 
     // create a vector
-    vector<Atom> atoms;
-
-    // check if we could even open the file
-    if (inPdbFile.is_open())
-    {
-        string line;
-
-        // read each line
-        while (getline(inPdbFile, line))
-        {
-            // read the first 4 characters
-            auto begin = line.substr(0, 4);
-            if (begin == "ATOM" || begin == "HETA")
-            {
-                // make an atom and get all the stuff for it
-                Atom curAtom;
-
-                // check the element first to see if we
-                // need to keep going or not
-                auto element = trim(line.substr(76, 2));
-
-                // default vdw is -1.0f, so only check if we need to change it
-                // if it's not in the list, just break out (saves a lot of time)
-                if (element == "H")
-                    curAtom.vdw = 1.2f;
-                else if (element == "ZN")
-                    curAtom.vdw = 1.39f;
-                else if (element == "F")
-                    curAtom.vdw = 1.47f;
-                else if (element == "O")
-                    curAtom.vdw = 1.52f;
-                else if (element == "N")
-                    curAtom.vdw = 1.55f;
-                else if (element == "C")
-                    curAtom.vdw = 1.7f;
-                else if (element == "S")
-                    curAtom.vdw = 1.8f;
-                else
-                    continue;
-
-                curAtom.element = element;
-
-                auto name = line.substr(12, 4);
-                auto resName = line.substr(17, 3);
-                auto charge = line.substr(78, 2);
-
-                curAtom.serial = stoi(line.substr(6, 5));
-                curAtom.name = trim(name);
-                curAtom.altLoc = line.at(16);
-                curAtom.resName = trim(resName);
-                curAtom.chainID = line.at(21);
-                curAtom.resSeq = stoi(line.substr(22, 4));
-                curAtom.iCode = line.at(26);
-                curAtom.x = stof(line.substr(30, 8));
-                curAtom.y = stof(line.substr(38, 8));
-                curAtom.z = stof(line.substr(46, 8));
-                curAtom.occupancy = stof(line.substr(54, 6));
-                curAtom.tempFactor = stof(line.substr(60, 6));
-                curAtom.charge = trim(charge);
-
-                // if we have a valid vdw, add it to the vector
-                if (curAtom.vdw != -1.0f)
-                    atoms.push_back(curAtom);
-            }
-        }
-
-        cout << "Found " << atoms.size() << " atoms.\n";
-
-        // close the file
-        inPdbFile.close();
-    }
-    else
-    {
-        cout << "Unable to open " << pdbFilePath << "\n";
+    vector<GPUAtom> atoms;
+    PDBProcessor pdbprocessor;
+    if (pdbprocessor.getGPUAtomsFromPDB(pdbFilePath, atoms))
         return 1;
-    }
 
     // get the count
     auto nAtoms = atoms.size();
@@ -319,6 +229,7 @@ int main(int argc, char **argv)
                 pdbBounds[5] = atoms[i].z;
         }
 
+        // TODO: This likely can all be put in the PDBProcessor function.
         // this shouldn't be an issue though because we know that size > 0
         auto gpuAtoms = new GPUAtom[nAtoms];
         
@@ -458,7 +369,7 @@ int main(int argc, char **argv)
                 }
 
                 // get the dielectrics
-                cudaResult = sliceDielectricCuda(dielectricOut, densityOut, refDielectric, outDielectric, nAtoms, nGpuGridPoint, deviceProp);
+                cudaResult = sliceDielectricCuda(dielectricOut, densityOut, inDielectric, outDielectric, nAtoms, nGpuGridPoint, deviceProp);
                 if (cudaResult != cudaSuccess)
                 {
                     cout << "Failed to run dielectric kernel." << endl;
@@ -490,7 +401,7 @@ int main(int argc, char **argv)
                 {
                     // find the pixel location and it's heatmap value
                     auto pixel = (y * IMG_SIZE) + x;
-                    auto percent = (outDielectric - gridPoints[pixel].dielectric) / (outDielectric - refDielectric);
+                    auto percent = (outDielectric - gridPoints[pixel].dielectric) / (outDielectric - inDielectric);
                     auto heat = getHeatMapColor(percent);
 
                     // a pixel has 4 colors so mult by 4 and offset for each color

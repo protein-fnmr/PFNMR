@@ -99,12 +99,16 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <CudaCompile Include="kernel.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CSVReader.cpp" />
     <ClCompile Include="GPUTypes.h" />
+    <ClCompile Include="PDBProcessor.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CSVReader.h" />
     <ClInclude Include="gif.h" />
     <ClInclude Include="Heatmap.h" />
     <ClInclude Include="helper_string.h" />
+    <ClInclude Include="PDBProcessor.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

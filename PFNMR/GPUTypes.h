@@ -58,4 +58,13 @@ typedef struct {
     float dielectric = -1.0;
 } GridPoint;
 
+typedef struct {
+    int resid;
+    int chainid;
+    float x;
+    float y;
+    float z;
+    float charge;
+    float vdw;
+} GPUChargeAtom;
 #endif // !__GPUTYPES_H
