@@ -279,16 +279,12 @@ int main(int argc, char **argv)
         // start a new gif writer
         GifWriter gifWriter;
 
-#ifdef BENCHMARK
-        GifBegin(&gifWriter, "x_slice_groel.gif", IMG_SIZE, IMG_SIZE, GIF_DELAY);
-#else
         gifOutputPath.append(pdbFilePath);
         gifOutputPath.resize(gifOutputPath.length() - 4); // strip the .pdb
         gifOutputPath.append(".gif");
         replace(gifOutputPath.begin(), gifOutputPath.end(), ' ', '_'); // replace any spaces that might be in the file
 
         GifBegin(&gifWriter, gifOutputPath.c_str(), IMG_SIZE, IMG_SIZE, GIF_DELAY);
-#endif // BENCHMARK
 
         // do NUM_SLICES slices
         for (int slice = 0; slice < NUM_SLICES; ++slice)

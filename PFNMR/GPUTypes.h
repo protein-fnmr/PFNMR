@@ -28,7 +28,7 @@ typedef struct {
     float x;
     float y;
     float z;
-    float vdw;
+    float vdw = -1.0f;
 } GPUAtom;
 
 typedef struct {
