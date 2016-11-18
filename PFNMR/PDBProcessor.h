@@ -20,6 +20,7 @@
 
 #include <string>
 #include <array>
+#include <vector>
 
 #include "GPUTypes.h";
 
@@ -40,6 +41,7 @@ public:
 
     //int PDBProcessor::getAtomsFromPDB(string pdbpath, vector<Atom> & atoms);
     vector<GPUAtom> getGPUAtoms();
+    vector<GPUChargeAtom> getGPUChargeAtoms(vector<vector<string>> & chargetable);
 };
 
 #endif

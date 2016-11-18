@@ -55,7 +55,7 @@ typedef struct {
     float x;
     float y;
     float z;
-    float dielectric = -1.0;
+    float dielectric = -1.0f;
 } GridPoint;
 
 typedef struct {
@@ -64,7 +64,7 @@ typedef struct {
     float x;
     float y;
     float z;
-    float charge;
-    float vdw;
+    float charge = 0.0f;
+    float vdw = -1.0f;
 } GPUChargeAtom;
 #endif // !__GPUTYPES_H

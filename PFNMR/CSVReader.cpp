@@ -27,10 +27,6 @@
 
 using namespace std;
 
-CSVReader::CSVReader() 
-{
-}
-
 //Splitting code found on http://stackoverflow.com/questions/30797769/splitting-a-string-but-keeping-empty-tokens-c
 void split(const string& str, vector<string>& tokens, const string& delimiters)
 {
@@ -60,23 +56,40 @@ vector<string> split(const string &s, const string& delimiters) {
     return elems;
 }
 
-vector<vector<string>> CSVReader::readCSVFile(string filepath)
+CSVReader::CSVReader(string csvPath)
+{
+    this->csvPath = csvPath;
+    csvStream.open(csvPath);
+
+    if (csvStream.is_open())
+        isOpen = true;
+}
+
+CSVReader::~CSVReader()
+{
+    if (isOpen)
+        csvStream.close();
+}
+
+vector<vector<string>> CSVReader::readCSVFile()
 {
     vector<vector<string>> csvcontents;
     //Start reading through the file and adding amino acids to the list
-    ifstream csvfile(filepath);
-    if (csvfile.is_open()) //Can we open the file?
+    if (isOpen) //Can we open the file?
     {
         cout << "Reading CSV file to obtain charges." << endl;
         string line;
-        getline(csvfile, line); //Skip the header line
+        getline(csvStream, line); //Skip the header line
         int i = 0;
-        while (getline(csvfile, line)) //Read each line through the file
+        while (getline(csvStream, line)) //Read each line through the file
         {
             auto linecontents = split(line, ",");
             csvcontents.push_back(linecontents);
         }
     }
-    csvfile.close();
+    else
+    {
+        csvcontents.clear();
+    }
     return csvcontents;
 }

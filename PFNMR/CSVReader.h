@@ -23,9 +23,18 @@
 using namespace std;
 
 class CSVReader {
+private:
+    string csvPath;
+    ifstream csvStream;
+    bool isOpen = false;
+
 public:
-    CSVReader::CSVReader();
-    vector<vector<string>> CSVReader::readCSVFile(string filepath);
+    CSVReader(string csvPath);
+    ~CSVReader();
+
+    bool is_open() { return isOpen; }
+
+    vector<vector<string>> CSVReader::readCSVFile();
 };
 
 #endif

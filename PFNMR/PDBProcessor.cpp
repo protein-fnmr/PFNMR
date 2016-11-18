@@ -216,3 +216,86 @@ vector<GPUAtom> PDBProcessor::getGPUAtoms()
         return gpuAtoms;
     }
 }
+
+vector<GPUChargeAtom> PDBProcessor::getGPUChargeAtoms(vector<vector<string>> & chargetable)
+{
+    vector<GPUChargeAtom> gpuAtoms;
+
+    // check if the file is open
+    if (isOpen)
+    {
+        string line;
+
+        // read each line
+        while (getline(pdbStream, line))
+        {
+            // read the first 4 characters
+            auto begin = line.substr(0, 4);
+            if (begin == "ATOM" || begin == "HETA")
+            {
+                // make an atom and get all the stuff for it
+                GPUChargeAtom curAtom;
+                curAtom.chainid = (int)line.at(21);
+                curAtom.resid = stoi(line.substr(22, 4));
+                //Get the charge of the atom from the charge table passed to the function
+                auto name = trim(line.substr(12, 4));
+                auto resName = trim(line.substr(17, 3));
+                for (int i = 0; i < chargetable.size(); i++)
+                {
+                    if (chargetable[i][0] == resName && chargetable[i][1] == name && !empty(chargetable[i][2]))
+                    {
+                        curAtom.charge = stof(chargetable[i][2]);
+                        break;
+                    }
+                }
+                if (curAtom.charge == 0.0f)
+                {
+                    cout << "Warning: " << name << " on residue " << curAtom.resid << " (" << resName << "), chain " << (char)curAtom.chainid << " has a charge of 0.  Is it missing a charge in the look up csv?" << endl;
+                }
+
+                // check the element first to see if we
+                // need to keep going or not
+                auto element = trim(line.substr(76, 2));
+
+                // default vdw is -1.0f, so only check if we need to change it
+                // if it's not in the list, just break out (saves a lot of time)
+                // TODO: Perhaps read a property file could be read so user-defined vdws could be used, in case we miss some for things such as metaloenzymes.
+                if (element == "H")
+                    curAtom.vdw = 1.2f;
+                else if (element == "ZN")
+                    curAtom.vdw = 1.39f;
+                else if (element == "F")
+                    curAtom.vdw = 1.47f;
+                else if (element == "O")
+                    curAtom.vdw = 1.52f;
+                else if (element == "N")
+                    curAtom.vdw = 1.55f;
+                else if (element == "C")
+                    curAtom.vdw = 1.7f;
+                else if (element == "S")
+                    curAtom.vdw = 1.8f;
+                else
+                    continue;
+                curAtom.x = stof(line.substr(30, 8));
+                curAtom.y = stof(line.substr(38, 8));
+                curAtom.z = stof(line.substr(46, 8));
+
+                // if we have a valid vdw, add it to the vector
+                if (curAtom.vdw != -1.0f)
+                    gpuAtoms.push_back(curAtom);
+            }
+        }
+
+        cout << "Found " << gpuAtoms.size() << " atoms." << endl;
+
+        return gpuAtoms;
+    }
+    else
+    {
+        // return an empty vector and check this to see if we
+        // found atoms in the main function
+
+        gpuAtoms.clear();
+        return gpuAtoms;
+    }
+}
