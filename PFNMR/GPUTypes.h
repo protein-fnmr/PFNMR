@@ -23,8 +23,8 @@
 
 using namespace std;
 
-typedef struct {
-    //int resID;
+typedef struct _GPUAtom {
+public:
     float x;
     float y;
     float z;
@@ -58,14 +58,10 @@ typedef struct {
     float dielectric = -1.0f;
 } GridPoint;
 
-typedef struct {
+typedef struct _GPUChargeAtom : _GPUAtom{
     int resid;
     int chainid;
-    float x;
-    float y;
-    float z;
     float charge = 0.0f;
-    float vdw = -1.0f;
 } GPUChargeAtom;
 
 typedef struct {
