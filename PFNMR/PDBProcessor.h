@@ -39,9 +39,10 @@ public:
 
     bool is_open() { return isOpen; }
 
-    //int PDBProcessor::getAtomsFromPDB(string pdbpath, vector<Atom> & atoms);
+    void PDBProcessor::restart();
     vector<GPUAtom> getGPUAtoms();
     vector<GPUChargeAtom> getGPUChargeAtoms(vector<vector<string>> & chargetable);
+    vector<Atom> PDBProcessor::getAtomsFromPDB();
 };
 
 #endif

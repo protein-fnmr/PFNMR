@@ -67,4 +67,20 @@ typedef struct {
     float charge = 0.0f;
     float vdw = -1.0f;
 } GPUChargeAtom;
+
+typedef struct {
+    int resid;
+    int chainid;
+    float x;
+    float y;
+    float z;
+    float fieldx = 0.0f;
+    float fieldy = 0.0f;
+    float fieldz = 0.0f;
+
+    float getTotalField()
+    {
+        return sqrtf((fieldx * fieldx) + (fieldy * fieldy) + (fieldz * fieldz));
+    }
+} GPUEFP;
 #endif // !__GPUTYPES_H
