@@ -24,7 +24,6 @@
 using namespace std;
 
 typedef struct _GPUAtom {
-public:
     float x;
     float y;
     float z;

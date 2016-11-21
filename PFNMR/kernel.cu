@@ -16,6 +16,9 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
+// use the math constants
+#define _USE_MATH_DEFINES
+
 #include <stdio.h>
 #include <iostream>
 #include <fstream>
@@ -25,6 +28,7 @@
 #include <locale>
 #include <tuple>
 #include <ctime>
+#include <math.h>
 
 #include "PDBProcessor.h"
 #include "CSVReader.h"
@@ -34,8 +38,6 @@
 #include "helper_string.h"
 
 using namespace std;
-
-#define PI_F 3.14159265358979f;
 
 #define NUM_SLICES 10
 #define IMG_SIZE 300
@@ -51,7 +53,8 @@ cudaError_t sliceDensityCuda(float *out, const T *inAtoms, const GridPoint *inGr
 cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDielectric,
     const float outdielectric, const size_t nAtoms, const size_t nGridPoints, cudaDeviceProp &deviceProp);
 
-int electricFieldCalculation(string pdbPath, const float lineresolution, const float inDielectric, const float outDielectric, const float variance);
+int electricFieldCalculation(string pdbPath, const float lineresolution, const float inDielectric,
+    const float outDielectric, const float variance);
 
 // the density kernel that is ran on the GPU
 template<typename T>
@@ -707,7 +710,7 @@ int electricFieldCalculation(string pdbPath, const float lineresolution, const f
                     auto theta = asinf(diffy / effectivelength);
                     auto phi = atanf(diffz / diffx);
                     if (diffx < 0.0f)
-                        phi += PI_F;
+                        phi += M_PI;
                     fluorines[i].fieldx += Etot * cosf(theta) * cosf(phi);
                     fluorines[i].fieldy += Etot * sinf(theta);
                     fluorines[i].fieldz += Etot * cosf(theta) * sinf(phi);
