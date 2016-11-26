@@ -1,0 +1,43 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CudaCompile Include="kernel.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="CSVReader.cpp">
+      <Filter>File Handling</Filter>
+    </ClCompile>
+    <ClCompile Include="PDBProcessor.cpp">
+      <Filter>File Handling</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="GPUTypes.h">
+      <Filter>Misc Headers</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="CSVReader.h">
+      <Filter>File Handling</Filter>
+    </ClInclude>
+    <ClInclude Include="PDBProcessor.h">
+      <Filter>File Handling</Filter>
+    </ClInclude>
+    <ClInclude Include="gif.h">
+      <Filter>Misc Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="Heatmap.h">
+      <Filter>Misc Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="helper_string.h">
+      <Filter>Misc Headers</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="File Handling">
+      <UniqueIdentifier>{aaaa786e-1bca-4133-9a1f-c2a531fa37fb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Misc Headers">
+      <UniqueIdentifier>{94b2c7c0-4491-4915-8a19-4c62a7dab096}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

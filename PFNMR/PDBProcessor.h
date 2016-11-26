@@ -22,7 +22,7 @@
 #include <array>
 #include <vector>
 
-#include "GPUTypes.h";
+#include "GPUTypes.h"
 
 using namespace std;
 
