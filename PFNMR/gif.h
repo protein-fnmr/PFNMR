@@ -359,7 +359,7 @@ void GifMakePalette(const uint8_t* lastFrame, const uint8_t* nextFrame, uint32_t
     if (lastFrame)
         numPixels = GifPickChangedPixels(lastFrame, destroyableImage, numPixels);
 
-    const int lastElt = 1 << bitDepth;
+    const int lastElt = 1LL << bitDepth;
     const int splitElt = lastElt / 2;
     const int splitDist = splitElt / 2;
 
@@ -368,8 +368,8 @@ void GifMakePalette(const uint8_t* lastFrame, const uint8_t* nextFrame, uint32_t
     GIF_TEMP_FREE(destroyableImage);
 
     // add the bottom node for the transparency index
-    pPal->treeSplit[1 << (bitDepth - 1)] = 0;
-    pPal->treeSplitElt[1 << (bitDepth - 1)] = 0;
+    pPal->treeSplit[1LL << (bitDepth - 1)] = 0;
+    pPal->treeSplitElt[1LL << (bitDepth - 1)] = 0;
 
     pPal->r[0] = pPal->g[0] = pPal->b[0] = 0;
 }

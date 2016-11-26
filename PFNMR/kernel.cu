@@ -77,6 +77,11 @@ cudaError_t sliceDensityCuda(float *out, const GPUAtom *inAtoms, const GridPoint
     float *dev_out = 0;
     cudaError_t cudaStatus;
 
+	// find the most effective dimensions for our calculations
+	int blockDim = sqrt(deviceProp.maxThreadsPerBlock);
+	auto blockSize = dim3(blockDim, blockDim);
+	auto gridSize = dim3(round((blockDim - 1 + nGridPoints) / blockDim), round((blockDim - 1 + nAtoms) / blockDim));
+
     // Allocate GPU buffers for vectors.
     cudaStatus = cudaMalloc((void**)&dev_out, nAtoms * nGridPoints * sizeof(float));
     if (cudaStatus != cudaSuccess) {
@@ -108,11 +113,6 @@ cudaError_t sliceDensityCuda(float *out, const GPUAtom *inAtoms, const GridPoint
         cerr << "cudaMemcpy failed!" << endl;
         goto Error;
     }
-
-    // find the most effective dimensions for our calculations
-    int blockDim = sqrt(deviceProp.maxThreadsPerBlock);
-    auto blockSize = dim3(blockDim, blockDim);
-    auto gridSize = dim3(round((blockDim - 1 + nGridPoints) / blockDim), round((blockDim - 1 + nAtoms) / blockDim));
 
     // Launch a kernel on the GPU.
     sliceDensityKernel <<<gridSize, blockSize>>> (dev_out, dev_atom, dev_grid, variance, nAtoms, nGridPoints);
@@ -158,6 +158,18 @@ cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDiel
     float *dev_out = 0;
     cudaError_t cudaStatus;
 
+	// use div because it's more accurrate than the rounding BS
+	auto gridDiv = div(nGridPoints, deviceProp.maxThreadsPerBlock);
+	auto gridY = gridDiv.quot;
+
+	// ass backwards way of rounding up (maybe use the same trick as above? It might be "faster")
+	if (gridDiv.rem != 0)
+		gridY++;
+
+	// find the block and grid size
+	auto blockSize = deviceProp.maxThreadsPerBlock;
+	int gridSize = min(16 * deviceProp.multiProcessorCount, gridY);
+
     // Allocate GPU buffers for vectors
     cudaStatus = cudaMalloc((void**)&dev_out, nGridPoints * sizeof(float));
     if (cudaStatus != cudaSuccess) {
@@ -177,18 +189,6 @@ cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDiel
         cerr << "cudaMemcpy failed!" << endl;
         goto Error;
     }
-
-    // use div because it's more accurrate than the rounding BS
-    auto gridDiv = div(nGridPoints, deviceProp.maxThreadsPerBlock);
-    auto gridY = gridDiv.quot;
-
-    // ass backwards way of rounding up (maybe use the same trick as above? It might be "faster")
-    if (gridDiv.rem != 0)
-        gridY++;
-
-    // find the block and grid size
-    auto blockSize = deviceProp.maxThreadsPerBlock;
-    int gridSize = min(16 * deviceProp.multiProcessorCount, gridY);
 
     // Launch a kernel on the GPU.
     sliceDielectricKernel <<<gridSize, blockSize>>> (dev_out, dev_in, refDielectric, outdielectric, nAtoms, nGridPoints);
