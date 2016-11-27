@@ -1,0 +1,61 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CudaCompile Include="kernel.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="CSVReader.cpp" />
+    <ClCompile Include="GPUTypes.h" />
+    <ClCompile Include="PDBProcessor.cpp" />
+    <ClCompile Include="ProteinDisplay.cpp" />
+    <ClCompile Include="displayUtils\shader.cpp">
+      <Filter>displayUtils</Filter>
+    </ClCompile>
+    <ClCompile Include="displayUtils\texture.cpp">
+      <Filter>displayUtils</Filter>
+    </ClCompile>
+    <ClCompile Include="displayUtils\objloader.cpp">
+      <Filter>displayUtils</Filter>
+    </ClCompile>
+    <ClCompile Include="displayUtils\controls.cpp">
+      <Filter>displayUtils</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="CSVReader.h" />
+    <ClInclude Include="gif.h" />
+    <ClInclude Include="Heatmap.h" />
+    <ClInclude Include="helper_string.h" />
+    <ClInclude Include="PDBProcessor.h" />
+    <ClInclude Include="ProteinDisplay.h" />
+    <ClInclude Include="displayUtils\texture.h">
+      <Filter>displayUtils</Filter>
+    </ClInclude>
+    <ClInclude Include="displayUtils\shader.h">
+      <Filter>displayUtils</Filter>
+    </ClInclude>
+    <ClInclude Include="displayUtils\objloader.h">
+      <Filter>displayUtils</Filter>
+    </ClInclude>
+    <ClInclude Include="displayUtils\controls.h">
+      <Filter>displayUtils</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+    <None Include="shaders\TextureFragmentShader.fragmentshader">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="shaders\TransformVertexShader.vertexshader">
+      <Filter>shaders</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="shaders">
+      <UniqueIdentifier>{687d16c8-2408-42e5-83fa-718849c65509}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="displayUtils">
+      <UniqueIdentifier>{089392e9-cbe4-4120-ae8a-03a50e7b5eb1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

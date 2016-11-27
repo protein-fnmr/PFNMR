@@ -26,6 +26,7 @@
 #include <tuple>
 #include <ctime>
 
+#include "ProteinDisplay.h"
 #include "PDBProcessor.h"
 #include "CSVReader.h"
 #include "GPUTypes.h"
@@ -183,7 +184,10 @@ int main(int argc, char **argv)
     //JME: PLEASE NOTE-The code implemented so far has ONLY been tested on an IFABP PDB file with the PHE residues replace for p-fluoro-phenylalanine.  It is potentially very breakable code for other PDBs.
     if (checkCmdLineFlag(argc, (const char**)argv, "test"))
     {
-        return electricFieldCalculation(pdbFilePath, 1000.0f, inDielectric, outDielectric, relVariance);
+        ProteinDisplay display;
+        display.initDisplay();
+        return 1;
+        //return electricFieldCalculation(pdbFilePath, 1000.0f, inDielectric, outDielectric, relVariance);
     }
 
     // start a timer for benchmarking
