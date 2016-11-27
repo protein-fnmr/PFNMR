@@ -49,24 +49,6 @@ __global__ void sliceDensityKernel(float *out, const GPUAtom *inAtoms, const Gri
     }
 }
 
-__global__ void sliceDensityKernel(float *out, const GPUChargeAtom *inAtoms, const GridPoint *inGrid,
-    const float variance, const size_t nAtoms, const size_t nGridPoints)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (i < nGridPoints && j < nAtoms)
-    {
-        float diffx = inGrid[i].x - inAtoms[j].x;
-        float diffy = inGrid[i].y - inAtoms[j].y;
-        float diffz = inGrid[i].z - inAtoms[j].z;
-        float distance = (diffx * diffx) + (diffy * diffy) + (diffz * diffz);
-
-        out[(j * nGridPoints) + i] = 1.0f - expf((-1.0f * distance) / ((variance * variance) * (inAtoms[j].vdw * inAtoms[j].vdw)));
-    }
-}
-
-
 // the dielectric kernel that is ran on the GPU
 __global__ void sliceDielectricKernel(float *out, const float *inDensity, const float refDielectric,
     const float outdielectric, const size_t nAtoms, const size_t nGridPoints)
@@ -245,7 +227,6 @@ Error:
 
     return cudaStatus;
 }
-
 
 // set up the gpu for the dielectric calculations
 cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDielectric,

@@ -36,17 +36,10 @@ using namespace std;
 
 #define EFIELDTESTING
 
-#define NUM_SLICES 10
-#define IMG_SIZE 300
-
-#define IMG_SIZE_SQ (IMG_SIZE * IMG_SIZE)
 #define GIF_DELAY 10
 
 // empty definitions that are defined in kernel.cu
 cudaError_t sliceDensityCuda(float *out, const GPUAtom *inAtoms, const GridPoint *inGrid,
-    const float variance, const size_t nAtoms, const size_t nGridPoints, cudaDeviceProp &deviceProp);
-
-cudaError_t sliceDensityCuda(float *out, const GPUChargeAtom *inAtoms, const GridPoint *inGrid,
     const float variance, const size_t nAtoms, const size_t nGridPoints, cudaDeviceProp &deviceProp);
 
 cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDielectric,
@@ -77,6 +70,8 @@ int main(int argc, char **argv)
         cout << "      -oD=OutDielectric (Optional, Default 80.4)" << endl;
         cout << "      -iD=InternalDielectric (Optional, Default 4.0)" << endl;
         cout << "      -rV=RelativeVarience (Optional, Default 0.93)" << endl << endl;
+		cout << "      -slices=SliceCount (Optional, Default 10)" << endl;
+		cout << "      -imgSize=ImageSize (Optional, Default 300)" << endl << endl;
 
         return 0;
     }
@@ -98,6 +93,10 @@ int main(int argc, char **argv)
     auto outDielectric = 80.4f;
     auto inDielectric = 4.0f;
     auto relVariance = 0.93f;
+
+	auto nSlices = 10;
+	auto imgSize = 300;
+	auto imgSizeSq = 90000;
 
     // check for the optional parameters
     if (checkCmdLineFlag(argc, (const char**)argv, "oD"))
@@ -147,6 +146,38 @@ int main(int argc, char **argv)
             return 1;
         }
     }
+
+	// check for the slices override
+	if (checkCmdLineFlag(argc, (const char**)argv, "slices"))
+	{
+		nSlices = getCmdLineArgumentInt(argc, (const char**)argv, "slices");
+
+		if (nSlices <= 0)
+		{
+			cout << "Warning: the Slice Count must be greater than zero." << endl;
+			cout << "Reverting to default value: 10" << endl;
+
+			nSlices = 10;
+		}
+	}
+
+	// check for image size override
+	// TODO: this can get nasty of someone puts in a number that's larger than sqrt(INT_MAX)
+	// but who really wants to make a gif that's 46341px x 46341px?
+	if (checkCmdLineFlag(argc, (const char**)argv, "imgSize"))
+	{
+		imgSize = getCmdLineArgumentInt(argc, (const char**)argv, "imgSize");
+
+		if (imgSize <= 0)
+		{
+			cout << "Warning: the Image Size must be greater than zero." << endl;
+			cout << "Reverting to default value: 300" << endl;
+
+			imgSize = 300;
+		}
+
+		imgSizeSq = imgSize * imgSize;
+	}
 
 #ifdef EFIELDTESTING
     //JME: Launchpoint for things I'm testing.  Done so I don't have to muck about in the main body of code below. 
@@ -218,7 +249,7 @@ int main(int argc, char **argv)
         // logic needs to be added later for oter directions
         string gifOutputPath = "x_slice_";
         auto maxSpan = max(yspan, zspan);
-        auto pointStep = maxSpan / (IMG_SIZE - 1);
+        auto pointStep = maxSpan / (imgSize - 1);
 
         // move the view to the new location
         pdbBounds[0] = boxCenter[0] - (xspan / 2);
@@ -258,8 +289,8 @@ int main(int argc, char **argv)
 
         // this nonsense calculates how much we can do at a time for 45% of the memory
         size_t nGpuGridPointBase = floor((cudaFreeMem * 0.45f - (nAtoms * sizeof(GPUAtom))) / ((nAtoms * sizeof(float)) + sizeof(GridPoint)));
-        int itersReq = round(IMG_SIZE_SQ / nGpuGridPointBase + 0.5f); // pull some computer math bs to make this work
-        auto gridPoints = new GridPoint[IMG_SIZE_SQ];
+        int itersReq = round(imgSizeSq / nGpuGridPointBase + 0.5f); // pull some computer math bs to make this work
+        auto gridPoints = new GridPoint[imgSizeSq];
 
         // start a new gif writer
         GifWriter gifWriter;
@@ -269,25 +300,25 @@ int main(int argc, char **argv)
         gifOutputPath.append(".gif");
         replace(gifOutputPath.begin(), gifOutputPath.end(), ' ', '_'); // replace any spaces that might be in the file
 
-        GifBegin(&gifWriter, gifOutputPath.c_str(), IMG_SIZE, IMG_SIZE, GIF_DELAY);
+        GifBegin(&gifWriter, gifOutputPath.c_str(), imgSize, imgSize, GIF_DELAY);
 
-        // do NUM_SLICES slices
-        for (int slice = 0; slice < NUM_SLICES; ++slice)
+        // perform the operation over every slice
+        for (int slice = 0; slice < nSlices; ++slice)
         {
-            cout << "Slice " << slice + 1 << " of " << NUM_SLICES << endl;
+            cout << "Calculating slice " << slice + 1 << " of " << nSlices << endl;
 
             // THIS RIGHT HERE WAS THE PROBLEM THE WHOLE TIME
             // force a float value with 1.0f bs
-            auto xval = ((slice + 1.0f) / (NUM_SLICES + 1)) * xspan + pdbBounds[0];
+            auto xval = ((slice + 1.0f) / (nSlices + 1)) * xspan + pdbBounds[0];
 
             // input all the new points into the grid
-            for (int y = 0; y < IMG_SIZE; ++y)
+            for (int y = 0; y < imgSize; ++y)
             {
                 auto yval = pdbBounds[2] + (y * pointStep);
 
-                for (int z = 0; z < IMG_SIZE; ++z)
+                for (int z = 0; z < imgSize; ++z)
                 {
-                    size_t loc = (y * IMG_SIZE) + z;
+                    size_t loc = (y * imgSize) + z;
                     gridPoints[loc].x = xval;
                     gridPoints[loc].y = yval;
                     gridPoints[loc].z = pdbBounds[4] + (z * pointStep);
@@ -301,8 +332,8 @@ int main(int argc, char **argv)
                 auto nGpuGridPoint = nGpuGridPointBase;
 
                 // if we're at the end, we just use what is needed
-                if ((IMG_SIZE_SQ - nGpuGridPointBase * subslice) < nGpuGridPointBase)
-                    nGpuGridPoint = IMG_SIZE_SQ - nGpuGridPoint * subslice;
+                if ((imgSizeSq - nGpuGridPointBase * subslice) < nGpuGridPointBase)
+                    nGpuGridPoint = imgSizeSq - nGpuGridPoint * subslice;
 
                 // create the gridpoint subset array
                 auto gpuGridPoints = new GridPoint[nGpuGridPoint];
@@ -315,10 +346,8 @@ int main(int argc, char **argv)
                 auto densityOut = new float[nAtoms * nGpuGridPoint];
                 auto dielectricOut = new float[nGpuGridPoint];
 
-                auto gpuAtomsArray = &gpuAtoms[0];
-
                 // get all the densities for each pixel
-                cudaResult = sliceDensityCuda(densityOut, gpuAtomsArray, gpuGridPoints, relVariance, nAtoms, nGpuGridPoint, deviceProp);
+                cudaResult = sliceDensityCuda(densityOut, &gpuAtoms[0], gpuGridPoints, relVariance, nAtoms, nGpuGridPoint, deviceProp);
                 if (cudaResult != cudaSuccess)
                 {
                     cout << "Failed to run density kernel." << endl;
@@ -349,15 +378,15 @@ int main(int argc, char **argv)
             }
 
             // define a new array to store our image data
-            auto image = new uint8_t[IMG_SIZE_SQ * 4];
+            auto image = new uint8_t[imgSizeSq * 4];
 
             // move over each pixel
-            for (int y = 0; y < IMG_SIZE; ++y)
+            for (int y = 0; y < imgSize; ++y)
             {
-                for (int x = 0; x < IMG_SIZE; ++x)
+                for (int x = 0; x < imgSize; ++x)
                 {
                     // find the pixel location and it's heatmap value
-                    auto pixel = (y * IMG_SIZE) + x;
+                    auto pixel = (y * imgSize) + x;
                     auto percent = (outDielectric - gridPoints[pixel].dielectric) / (outDielectric - inDielectric);
                     auto heat = getHeatMapColor(percent);
 
@@ -373,7 +402,7 @@ int main(int argc, char **argv)
             }
 
             // write out a frame
-            GifWriteFrame(&gifWriter, image, IMG_SIZE, IMG_SIZE, GIF_DELAY);
+            GifWriteFrame(&gifWriter, image, imgSize, imgSize, GIF_DELAY);
             delete[] image;
         }
 
@@ -417,7 +446,6 @@ int electricFieldCalculation(string pdbPath, const float lineresolution, const f
     auto baseatoms = pdb.getAtomsFromPDB();
     auto nAtoms = baseatoms.size();
     auto gpuatoms = pdb.getGPUChargeAtomsFromAtoms(baseatoms, chargetable);
-    auto gpuatomsarray = &gpuatoms[0];
 
     if (nAtoms != 0)
     {
@@ -497,7 +525,9 @@ int electricFieldCalculation(string pdbPath, const float lineresolution, const f
                     //Do the density and dielectric calculations for the line
                     auto densityOut = new float[nAtoms * (int)lineresolution];
                     auto dielectricOut = new float[(int)lineresolution];
-                    cudaResult = sliceDensityCuda(densityOut, gpuatomsarray, gpulinepoints, variance, nAtoms, (int)lineresolution, deviceProp);
+
+					// use a static_cast to downcast the GPUChargeAtom array to GPUAtom
+                    cudaResult = sliceDensityCuda(densityOut, static_cast<const GPUAtom*>(&gpuatoms[0]), gpulinepoints, variance, nAtoms, (int)lineresolution, deviceProp);
                     if (cudaResult != cudaSuccess)
                     {
                         cout << "Failed to run density kernel." << endl;
