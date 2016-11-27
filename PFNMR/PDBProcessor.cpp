@@ -67,15 +67,6 @@ PDBProcessor::~PDBProcessor()
         pdbStream.close();
 }
 
-void PDBProcessor::restart()
-{
-    if (isOpen)
-    {
-        pdbStream.clear();
-        pdbStream.seekg(0, ios::beg);
-    }
-}
-
 vector<Atom> PDBProcessor::getAtomsFromPDB()
 {
     vector<Atom> atoms;
@@ -312,4 +303,40 @@ vector<GPUChargeAtom> PDBProcessor::getGPUChargeAtoms(vector<vector<string>> & c
         gpuAtoms.clear();
         return gpuAtoms;
     }
+}
+
+vector<GPUChargeAtom> PDBProcessor::getGPUChargeAtomsFromAtoms(vector<Atom> & atoms, vector<vector<string>> & chargetable)
+{
+    vector<GPUChargeAtom> gpuAtoms;
+    for (int i = 0; i < atoms.size(); i++)
+    {
+        auto resName = atoms[i].resName;
+        auto name = atoms[i].name;
+
+        GPUChargeAtom curAtom;
+        curAtom.x = atoms[i].x;
+        curAtom.y = atoms[i].y;
+        curAtom.z = atoms[i].z;
+        curAtom.chainid = atoms[i].chainID;
+        curAtom.resid = atoms[i].resSeq;
+        curAtom.vdw = atoms[i].vdw;
+
+        for (int i = 0; i < chargetable.size(); i++)
+        {
+            if (chargetable[i][0] == resName && chargetable[i][1] == name)
+            {
+                if (!empty(chargetable[i][2]))
+                    curAtom.charge = stof(chargetable[i][2]);
+                else
+                    curAtom.charge = 0.0f;
+                break;
+            }
+        }
+        if (curAtom.charge == 0.0f)
+        {
+            cout << "Warning: " << name << " on residue " << curAtom.resid << " (" << resName << "), chain " << (char)curAtom.chainid << " has a charge of 0.  Is it missing a charge in the look up csv?" << endl;
+        }
+        gpuAtoms.push_back(curAtom);
+    }
+    return gpuAtoms;
 }

@@ -39,10 +39,11 @@ public:
 
     bool is_open() { return isOpen; }
 
-    void PDBProcessor::restart();
     vector<GPUAtom> getGPUAtoms();
     vector<GPUChargeAtom> getGPUChargeAtoms(vector<vector<string>> & chargetable);
     vector<Atom> PDBProcessor::getAtomsFromPDB();
+    vector<GPUChargeAtom> getGPUChargeAtomsFromAtoms(vector<Atom> & atoms, vector<vector<string>> & chargetable);
+
 };
 
 #endif
