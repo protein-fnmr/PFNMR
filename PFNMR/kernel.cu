@@ -49,23 +49,6 @@ __global__ void sliceDensityKernel(float *out, const GPUAtom *inAtoms, const Gri
     }
 }
 
-__global__ void sliceDensityKernel(float *out, const GPUChargeAtom *inAtoms, const GridPoint *inGrid,
-    const float variance, const size_t nAtoms, const size_t nGridPoints)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (i < nGridPoints && j < nAtoms)
-    {
-        float diffx = inGrid[i].x - inAtoms[j].x;
-        float diffy = inGrid[i].y - inAtoms[j].y;
-        float diffz = inGrid[i].z - inAtoms[j].z;
-        float distance = (diffx * diffx) + (diffy * diffy) + (diffz * diffz);
-
-        out[(j * nGridPoints) + i] = 1.0f - expf((-1.0f * distance) / ((variance * variance) * (inAtoms[j].vdw * inAtoms[j].vdw)));
-    }
-}
-
 // the dielectric kernel that is ran on the GPU
 __global__ void sliceDielectricKernel(float *out, const float *inDensity, const float refDielectric,
     const float outdielectric, const size_t nAtoms, const size_t nGridPoints)
@@ -131,87 +114,6 @@ cudaError_t sliceDensityCuda(float *out, const GPUAtom *inAtoms, const GridPoint
 
     // Launch a kernel on the GPU.
     sliceDensityKernel <<<gridSize, blockSize>>> (dev_out, dev_atom, dev_grid, variance, nAtoms, nGridPoints);
-
-    // Check for any errors launching the kernel
-    cudaStatus = cudaGetLastError();
-    if (cudaStatus != cudaSuccess) {
-        cerr << "density kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
-        goto Error;
-    }
-
-    // cudaDeviceSynchronize waits for the kernel to finish, and returns
-    // any errors encountered during the launch.
-    cudaStatus = cudaDeviceSynchronize();
-    if (cudaStatus != cudaSuccess) {
-        cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching density kernel!" << endl;
-        cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
-        goto Error;
-    }
-
-    // Copy output vector from GPU buffer to host memory.
-    cudaStatus = cudaMemcpy(out, dev_out, nAtoms * nGridPoints * sizeof(float), cudaMemcpyDeviceToHost);
-    if (cudaStatus != cudaSuccess) {
-        cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
-    }
-
-    // clear all our device arrays
-Error:
-    cudaFree(dev_atom);
-    cudaFree(dev_grid);
-    cudaFree(dev_out);
-
-    return cudaStatus;
-}
-
-cudaError_t sliceDensityCuda(float *out, const GPUChargeAtom *inAtoms, const GridPoint *inGrid,
-    const float variance, const size_t nAtoms, const size_t nGridPoints, cudaDeviceProp &deviceProp)
-{
-    // define device arrays
-    GPUChargeAtom *dev_atom = 0;
-    GridPoint *dev_grid = 0;
-    float *dev_out = 0;
-    cudaError_t cudaStatus;
-
-    // find the most effective dimensions for our calculations
-    int blockDim = sqrt(deviceProp.maxThreadsPerBlock);
-    auto blockSize = dim3(blockDim, blockDim);
-    auto gridSize = dim3(round((blockDim - 1 + nGridPoints) / blockDim), round((blockDim - 1 + nAtoms) / blockDim));
-
-    // Allocate GPU buffers for vectors.
-    cudaStatus = cudaMalloc((void**)&dev_out, nAtoms * nGridPoints * sizeof(float));
-    if (cudaStatus != cudaSuccess) {
-        cerr << "cudaMalloc failed!" << endl;
-        goto Error;
-    }
-
-    cudaStatus = cudaMalloc((void**)&dev_atom, nAtoms * sizeof(GPUChargeAtom));
-    if (cudaStatus != cudaSuccess) {
-        cerr << "cudaMalloc failed!" << endl;
-        goto Error;
-    }
-
-    cudaStatus = cudaMalloc((void**)&dev_grid, nGridPoints * sizeof(GPUChargeAtom));
-    if (cudaStatus != cudaSuccess) {
-        cerr << "cudaMalloc failed!" << endl;
-        goto Error;
-    }
-
-    // Copy input vectors from host memory to GPU buffers.
-    cudaStatus = cudaMemcpy(dev_atom, inAtoms, nAtoms * sizeof(GPUChargeAtom), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
-    }
-
-    cudaStatus = cudaMemcpy(dev_grid, inGrid, nGridPoints * sizeof(GridPoint), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
-    }
-
-    // Launch a kernel on the GPU.
-    sliceDensityKernel << <gridSize, blockSize >> > (dev_out, dev_atom, dev_grid, variance, nAtoms, nGridPoints);
 
     // Check for any errors launching the kernel
     cudaStatus = cudaGetLastError();
