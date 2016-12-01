@@ -73,9 +73,9 @@ struct GifPalette
 };
 
 // max, min, and abs functions
-int GifIMax(int l, int r) { return l>r ? l : r; }
-int GifIMin(int l, int r) { return l<r ? l : r; }
-int GifIAbs(int i) { return i<0 ? -i : i; }
+int GifIMax(int l, int r) { return l > r ? l : r; }
+int GifIMin(int l, int r) { return l < r ? l : r; }
+int GifIAbs(int i) { return i < 0 ? -i : i; }
 
 // walks the k-d tree to pick the palette entry for a desired color.
 // Takes as in/out parameters the current best color and its error -
@@ -84,7 +84,7 @@ int GifIAbs(int i) { return i<0 ? -i : i; }
 void GifGetClosestPaletteColor(GifPalette* pPal, int r, int g, int b, int& bestInd, int& bestDiff, int treeRoot = 1)
 {
     // base case, reached the bottom of the tree
-    if (treeRoot >(1 << pPal->bitDepth) - 1)
+    if (treeRoot > (1 << pPal->bitDepth) - 1)
     {
         int ind = treeRoot - (1 << pPal->bitDepth);
         if (ind == kGifTransIndex) return;
@@ -159,7 +159,7 @@ int GifPartition(uint8_t* image, const int left, const int right, const int elt,
     GifSwapPixels(image, pivotIndex, right - 1);
     int storeIndex = left;
     bool split = 0;
-    for (int ii = left; ii<right - 1; ++ii)
+    for (int ii = left; ii < right - 1; ++ii)
     {
         int arrayVal = image[ii * 4 + elt];
         if (arrayVal < pivotValue)
@@ -217,7 +217,7 @@ void GifSplitPalette(uint8_t* image, int numPixels, int firstElt, int lastElt, i
             {
                 // special case: the darkest color in the image
                 uint32_t r = 255, g = 255, b = 255;
-                for (int ii = 0; ii<numPixels; ++ii)
+                for (int ii = 0; ii < numPixels; ++ii)
                 {
                     r = GifIMin(r, image[ii * 4 + 0]);
                     g = GifIMin(g, image[ii * 4 + 1]);
@@ -235,7 +235,7 @@ void GifSplitPalette(uint8_t* image, int numPixels, int firstElt, int lastElt, i
             {
                 // special case: the lightest color in the image
                 uint32_t r = 0, g = 0, b = 0;
-                for (int ii = 0; ii<numPixels; ++ii)
+                for (int ii = 0; ii < numPixels; ++ii)
                 {
                     r = GifIMax(r, image[ii * 4 + 0]);
                     g = GifIMax(g, image[ii * 4 + 1]);
@@ -252,7 +252,7 @@ void GifSplitPalette(uint8_t* image, int numPixels, int firstElt, int lastElt, i
 
         // otherwise, take the average of all colors in this subcube
         uint64_t r = 0, g = 0, b = 0;
-        for (int ii = 0; ii<numPixels; ++ii)
+        for (int ii = 0; ii < numPixels; ++ii)
         {
             r += image[ii * 4 + 0];
             g += image[ii * 4 + 1];
@@ -278,7 +278,7 @@ void GifSplitPalette(uint8_t* image, int numPixels, int firstElt, int lastElt, i
     int minR = 255, maxR = 0;
     int minG = 255, maxG = 0;
     int minB = 255, maxB = 0;
-    for (int ii = 0; ii<numPixels; ++ii)
+    for (int ii = 0; ii < numPixels; ++ii)
     {
         int r = image[ii * 4 + 0];
         int g = image[ii * 4 + 1];
@@ -324,7 +324,7 @@ int GifPickChangedPixels(const uint8_t* lastFrame, uint8_t* frame, int numPixels
     int numChanged = 0;
     uint8_t* writeIter = frame;
 
-    for (int ii = 0; ii<numPixels; ++ii)
+    for (int ii = 0; ii < numPixels; ++ii)
     {
         if (lastFrame[0] != frame[0] ||
             lastFrame[1] != frame[1] ||
@@ -359,7 +359,7 @@ void GifMakePalette(const uint8_t* lastFrame, const uint8_t* nextFrame, uint32_t
     if (lastFrame)
         numPixels = GifPickChangedPixels(lastFrame, destroyableImage, numPixels);
 
-    const int lastElt = 1 << bitDepth;
+    const int lastElt = 1LL << bitDepth;
     const int splitElt = lastElt / 2;
     const int splitDist = splitElt / 2;
 
@@ -368,8 +368,8 @@ void GifMakePalette(const uint8_t* lastFrame, const uint8_t* nextFrame, uint32_t
     GIF_TEMP_FREE(destroyableImage);
 
     // add the bottom node for the transparency index
-    pPal->treeSplit[1 << (bitDepth - 1)] = 0;
-    pPal->treeSplitElt[1 << (bitDepth - 1)] = 0;
+    pPal->treeSplit[1LL << (bitDepth - 1)] = 0;
+    pPal->treeSplitElt[1LL << (bitDepth - 1)] = 0;
 
     pPal->r[0] = pPal->g[0] = pPal->b[0] = 0;
 }
@@ -384,16 +384,16 @@ void GifDitherImage(const uint8_t* lastFrame, const uint8_t* nextFrame, uint8_t*
     // to be propagated
     int32_t* quantPixels = (int32_t*)GIF_TEMP_MALLOC(sizeof(int32_t)*numPixels * 4);
 
-    for (int ii = 0; ii<numPixels * 4; ++ii)
+    for (int ii = 0; ii < numPixels * 4; ++ii)
     {
         uint8_t pix = nextFrame[ii];
         int32_t pix16 = int32_t(pix) * 256;
         quantPixels[ii] = pix16;
     }
 
-    for (uint32_t yy = 0; yy<height; ++yy)
+    for (uint32_t yy = 0; yy < height; ++yy)
     {
-        for (uint32_t xx = 0; xx<width; ++xx)
+        for (uint32_t xx = 0; xx < width; ++xx)
         {
             int32_t* nextPix = quantPixels + 4 * (yy*width + xx);
             const uint8_t* lastPix = lastFrame ? lastFrame + 4 * (yy*width + xx) : NULL;
@@ -475,7 +475,7 @@ void GifDitherImage(const uint8_t* lastFrame, const uint8_t* nextFrame, uint8_t*
     }
 
     // Copy the palettized result to the output buffer
-    for (int ii = 0; ii<numPixels * 4; ++ii)
+    for (int ii = 0; ii < numPixels * 4; ++ii)
     {
         outFrame[ii] = quantPixels[ii];
     }
@@ -487,7 +487,7 @@ void GifDitherImage(const uint8_t* lastFrame, const uint8_t* nextFrame, uint8_t*
 void GifThresholdImage(const uint8_t* lastFrame, const uint8_t* nextFrame, uint8_t* outFrame, uint32_t width, uint32_t height, GifPalette* pPal)
 {
     uint32_t numPixels = width*height;
-    for (uint32_t ii = 0; ii<numPixels; ++ii)
+    for (uint32_t ii = 0; ii < numPixels; ++ii)
     {
         // if a previous color is available, and it matches the current color,
         // set the pixel to transparent
@@ -563,7 +563,7 @@ void GifWriteChunk(FILE* f, GifBitStatus& stat)
 
 void GifWriteCode(FILE* f, GifBitStatus& stat, uint32_t code, uint32_t length)
 {
-    for (uint32_t ii = 0; ii<length; ++ii)
+    for (uint32_t ii = 0; ii < length; ++ii)
     {
         GifWriteBit(stat, code);
         code = code >> 1;
@@ -589,7 +589,7 @@ void GifWritePalette(const GifPalette* pPal, FILE* f)
     fputc(0, f);
     fputc(0, f);
 
-    for (int ii = 1; ii<(1 << pPal->bitDepth); ++ii)
+    for (int ii = 1; ii < (1 << pPal->bitDepth); ++ii)
     {
         uint32_t r = pPal->r[ii];
         uint32_t g = pPal->g[ii];
@@ -651,9 +651,9 @@ void GifWriteLzwImage(FILE* f, uint8_t* image, uint32_t left, uint32_t top, uint
 
     GifWriteCode(f, stat, clearCode, codeSize);  // start with a fresh LZW dictionary
 
-    for (uint32_t yy = 0; yy<height; ++yy)
+    for (uint32_t yy = 0; yy < height; ++yy)
     {
-        for (uint32_t xx = 0; xx<width; ++xx)
+        for (uint32_t xx = 0; xx < width; ++xx)
         {
             uint8_t nextValue = image[(yy*width + xx) * 4 + 3];
 

@@ -24,14 +24,13 @@
 using namespace std;
 
 typedef struct _GPUAtom {
-public:
     float x;
     float y;
     float z;
     float vdw = -1.0f;
 } GPUAtom;
 
-typedef struct {
+typedef struct _Atom {
     int serial;
     string name;
     char altLoc;
@@ -51,14 +50,14 @@ typedef struct {
     float dielectric;
 } Atom;
 
-typedef struct {
+typedef struct _GridPoint {
     float x;
     float y;
     float z;
     float dielectric = -1.0f;
 } GridPoint;
 
-typedef struct _GPUChargeAtom : _GPUAtom{
+typedef struct _GPUChargeAtom : _GPUAtom {
     int resid;
     int chainid;
     float charge = 0.0f;

@@ -107,6 +107,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClCompile Include="displayUtils\texture.cpp" />
     <ClCompile Include="ProteinDisplay.cpp" />
     <ClCompile Include="GPUTypes.h" />
+    <ClCompile Include="main.cpp" />
     <ClCompile Include="PDBProcessor.cpp" />
     <ClCompile Include="displayUtils\shader.cpp" />
   </ItemGroup>
