@@ -46,17 +46,17 @@ GLuint loadBMP_custom(const char * imagepath) {
 
     // If less than 54 bytes are read, problem
     if (fread(header, 1, 54, file) != 54) {
-        printf("Not a correct BMP file\n");
+        printf("Not a correct BMP file (empty file?)\n");
         return 0;
     }
     // A BMP files always begins with "BM"
     if (header[0] != 'B' || header[1] != 'M') {
-        printf("Not a correct BMP file\n");
+        printf("Not a correct BMP file (Header 'BM' error)\n");
         return 0;
     }
     // Make sure this is a 24bpp file
-    if (*(int*)&(header[0x1E]) != 0) { printf("Not a correct BMP file\n");    return 0; }
-    if (*(int*)&(header[0x1C]) != 24) { printf("Not a correct BMP file\n");    return 0; }
+    if (*(int*)&(header[0x1E]) != 0) { printf("Not a correct BMP file.  '1E' Error.\n");    return 0; }
+    if (*(int*)&(header[0x1C]) != 24) { printf("Not a correct BMP file.  '1C' Error.\n");    return 0; }
 
     // Read the information about the image
     dataPos = *(int*)&(header[0x0A]);
@@ -68,7 +68,7 @@ GLuint loadBMP_custom(const char * imagepath) {
     if (imageSize == 0)    imageSize = width*height * 3; // 3 : one byte for each Red, Green and Blue component
     if (dataPos == 0)      dataPos = 54; // The BMP header is done that way
 
-                                         // Create a buffer
+    // Create a buffer
     data = new unsigned char[imageSize];
 
     // Read the actual data from the file into the buffer
@@ -90,10 +90,6 @@ GLuint loadBMP_custom(const char * imagepath) {
     // OpenGL has now copied the data. Free our own version
     delete[] data;
 
-    // Poor filtering, or ...
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); 
-
     // ... nice trilinear filtering.
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -104,33 +100,6 @@ GLuint loadBMP_custom(const char * imagepath) {
     // Return the ID of the texture we just created
     return textureID;
 }
-
-// Since GLFW 3, glfwLoadTexture2D() has been removed. You have to use another texture loading library, 
-// or do it yourself (just like loadBMP_custom and loadDDS)
-//GLuint loadTGA_glfw(const char * imagepath){
-//
-//	// Create one OpenGL texture
-//	GLuint textureID;
-//	glGenTextures(1, &textureID);
-//
-//	// "Bind" the newly created texture : all future texture functions will modify this texture
-//	glBindTexture(GL_TEXTURE_2D, textureID);
-//
-//	// Read the file, call glTexImage2D with the right parameters
-//	glfwLoadTexture2D(imagepath, 0);
-//
-//	// Nice trilinear filtering.
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); 
-//	glGenerateMipmap(GL_TEXTURE_2D);
-//
-//	// Return the ID of the texture we just created
-//	return textureID;
-//}
-
-
 
 #define FOURCC_DXT1 0x31545844 // Equivalent to "DXT1" in ASCII
 #define FOURCC_DXT3 0x33545844 // Equivalent to "DXT3" in ASCII
@@ -165,7 +134,6 @@ GLuint loadDDS(const char * imagepath) {
     unsigned int linearSize = *(unsigned int*)&(header[16]);
     unsigned int mipMapCount = *(unsigned int*)&(header[24]);
     unsigned int fourCC = *(unsigned int*)&(header[80]);
-
 
     unsigned char * buffer;
     unsigned int bufsize;

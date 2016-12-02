@@ -31,6 +31,8 @@
 #include "Heatmap.h"
 #include "gif.h"
 #include "helper_string.h"
+#include "ProteinDisplay.h"
+
 
 using namespace std;
 
@@ -196,7 +198,11 @@ int main(int argc, char **argv)
     //JME: PLEASE NOTE-The code implemented so far has ONLY been tested on an IFABP PDB file with the PHE residues replace for p-fluoro-phenylalanine.  It is potentially very breakable code for other PDBs.
     if (checkCmdLineFlag(argc, (const char**)argv, "test"))
     {
-        return newEFieldMethod(pdbFilePath, 1000.0f, inDielectric, outDielectric, relVariance);
+        //return newEFieldMethod(pdbFilePath, 1000.0f, inDielectric, outDielectric, relVariance);
+        ProteinDisplay display;
+        display.initDisplay();
+
+        return 0;
     }
 #endif
 

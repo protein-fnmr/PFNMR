@@ -14,6 +14,25 @@
     <ClCompile Include="GPUTypes.h">
       <Filter>Misc Headers</Filter>
     </ClCompile>
+    <ClCompile Include="displayUtils\texture.cpp">
+      <Filter>Display Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="displayUtils\shader.cpp">
+      <Filter>Display Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="displayUtils\objloader.cpp">
+      <Filter>Display Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="displayUtils\controls.cpp">
+      <Filter>Display Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="ProteinDisplay.cpp">
+      <Filter>Display Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="BMPProcessing.cpp" />
+    <ClCompile Include="displayUtils\vboindexer.cpp">
+      <Filter>Display Utilities</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CSVReader.h">
@@ -31,6 +50,24 @@
     <ClInclude Include="helper_string.h">
       <Filter>Misc Headers</Filter>
     </ClInclude>
+    <ClInclude Include="displayUtils\texture.h">
+      <Filter>Display Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="displayUtils\shader.h">
+      <Filter>Display Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="displayUtils\objloader.h">
+      <Filter>Display Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="displayUtils\controls.h">
+      <Filter>Display Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="ProteinDisplay.h">
+      <Filter>Display Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="displayUtils\vboindexer.h">
+      <Filter>Display Utilities</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="File Handling">
@@ -39,5 +76,17 @@
     <Filter Include="Misc Headers">
       <UniqueIdentifier>{94b2c7c0-4491-4915-8a19-4c62a7dab096}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Display Utilities">
+      <UniqueIdentifier>{1883e012-a05e-433e-9b8b-dc8e59e42e15}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+    <None Include="shaders\TextureFragmentShader.fragmentshader">
+      <Filter>Display Utilities</Filter>
+    </None>
+    <None Include="shaders\TransformVertexShader.vertexshader">
+      <Filter>Display Utilities</Filter>
+    </None>
   </ItemGroup>
 </Project>

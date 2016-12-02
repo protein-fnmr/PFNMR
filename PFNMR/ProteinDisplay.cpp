@@ -17,6 +17,7 @@
 // Made from code taken from http://www.opengl-tutorial.org/, beer is in the mail.
 
 #include <stdio.h>
+#include <iostream>
 #include <stdlib.h>
 #include <vector>
 
@@ -30,8 +31,10 @@
 #include "displayUtils/texture.h"
 #include "displayUtils/controls.h"
 #include "displayUtils/objloader.h"
+#include "displayUtils/vboindexer.h"
 
 using namespace glm;
+using namespace std;
 
 GLFWwindow* window;
 
@@ -52,9 +55,9 @@ int ProteinDisplay::initDisplay()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     // Open a window and create its OpenGL context
-    window = glfwCreateWindow(1024, 768, "Tutorial 07 - Model Loading", NULL, NULL);
+    window = glfwCreateWindow(1024, 768, "PFNMR Display", NULL, NULL);
     if (window == NULL) {
-        fprintf(stderr, "Failed to open GLFW window. If you have an Intel GPU, they are not 3.3 compatible. Try the 2.1 version of the tutorials.\n");
+        fprintf(stderr, "Failed to open GLFW window. Do you have an OpenGL 3.3 capable display?\n");
         getchar();
         glfwTerminate();
         return -1;
@@ -72,15 +75,15 @@ int ProteinDisplay::initDisplay()
 
     // Ensure we can capture the escape key being pressed below
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
-    // Hide the mouse and enable unlimited mouvement
+    // Hide the mouse and enable unlimited movement
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     // Set the mouse at the center of the screen
     glfwPollEvents();
     glfwSetCursorPos(window, 1024 / 2, 768 / 2);
 
-    // Dark blue background
-    glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
+    // Dark black background
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
     // Enable depth test
     glEnable(GL_DEPTH_TEST);
@@ -101,7 +104,8 @@ int ProteinDisplay::initDisplay()
     GLuint MatrixID = glGetUniformLocation(programID, "MVP");
 
     // Load the texture
-    GLuint Texture = loadDDS("uvmap.DDS");
+    //GLuint Texture = loadBMP_custom("uvmap.bmp");
+    GLuint Texture = loadDDS("uvmap.dds");
 
     // Get a handle for our "myTextureSampler" uniform
     GLuint TextureID = glGetUniformLocation(programID, "myTextureSampler");
@@ -112,17 +116,34 @@ int ProteinDisplay::initDisplay()
     std::vector<glm::vec3> normals; // Won't be used at the moment.
     bool res = loadOBJ("cube.obj", vertices, uvs, normals);
 
+    std::vector<unsigned short> indices;
+    std::vector<glm::vec3> indexed_vertices;
+    std::vector<glm::vec2> indexed_uvs;
+    std::vector<glm::vec3> indexed_normals;
+    indexVBO(vertices, uvs, normals, indices, indexed_vertices, indexed_uvs, indexed_normals);
+
     // Load it into a VBO
 
     GLuint vertexbuffer;
     glGenBuffers(1, &vertexbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), &vertices[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, indexed_vertices.size() * sizeof(glm::vec3), &indexed_vertices[0], GL_STATIC_DRAW);
 
     GLuint uvbuffer;
     glGenBuffers(1, &uvbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
-    glBufferData(GL_ARRAY_BUFFER, uvs.size() * sizeof(glm::vec2), &uvs[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, indexed_uvs.size() * sizeof(glm::vec2), &indexed_uvs[0], GL_STATIC_DRAW);
+
+    GLuint normalbuffer;
+    glGenBuffers(1, &normalbuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, normalbuffer);
+    glBufferData(GL_ARRAY_BUFFER, indexed_normals.size() * sizeof(glm::vec3), &indexed_normals[0], GL_STATIC_DRAW);
+
+    // Generate a buffer for the indices as well
+    GLuint elementbuffer;
+    glGenBuffers(1, &elementbuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned short), &indices[0], GL_STATIC_DRAW);
 
     do {
 
@@ -173,11 +194,19 @@ int ProteinDisplay::initDisplay()
             (void*)0                          // array buffer offset
         );
 
-        // Draw the triangle !
-        glDrawArrays(GL_TRIANGLES, 0, vertices.size());
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
+
+        // Draw the triangles !
+        glDrawElements(
+            GL_TRIANGLES,      // mode
+            indices.size(),    // count
+            GL_UNSIGNED_SHORT,   // type
+            (void*)0           // element array buffer offset
+        );
 
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);
+        glDisableVertexAttribArray(2);
 
         // Swap buffers
         glfwSwapBuffers(window);
@@ -190,6 +219,8 @@ int ProteinDisplay::initDisplay()
     // Cleanup VBO and shader
     glDeleteBuffers(1, &vertexbuffer);
     glDeleteBuffers(1, &uvbuffer);
+    glDeleteBuffers(1, &normalbuffer);
+    glDeleteBuffers(1, &elementbuffer);
     glDeleteProgram(programID);
     glDeleteTextures(1, &TextureID);
     glDeleteVertexArrays(1, &VertexArrayID);

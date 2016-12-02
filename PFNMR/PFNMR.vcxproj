@@ -101,10 +101,12 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <CudaCompile Include="kernel.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BMPProcessing.cpp" />
     <ClCompile Include="CSVReader.cpp" />
     <ClCompile Include="displayUtils\controls.cpp" />
     <ClCompile Include="displayUtils\objloader.cpp" />
     <ClCompile Include="displayUtils\texture.cpp" />
+    <ClCompile Include="displayUtils\vboindexer.cpp" />
     <ClCompile Include="ProteinDisplay.cpp" />
     <ClCompile Include="GPUTypes.h" />
     <ClCompile Include="main.cpp" />
@@ -116,6 +118,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="displayUtils\controls.h" />
     <ClInclude Include="displayUtils\objloader.h" />
     <ClInclude Include="displayUtils\texture.h" />
+    <ClInclude Include="displayUtils\vboindexer.h" />
     <ClInclude Include="ProteinDisplay.h" />
     <ClInclude Include="gif.h" />
     <ClInclude Include="Heatmap.h" />
