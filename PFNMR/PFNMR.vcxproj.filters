@@ -29,7 +29,6 @@
     <ClCompile Include="ProteinDisplay.cpp">
       <Filter>Display Utilities</Filter>
     </ClCompile>
-    <ClCompile Include="BMPProcessing.cpp" />
     <ClCompile Include="displayUtils\vboindexer.cpp">
       <Filter>Display Utilities</Filter>
     </ClCompile>
@@ -88,5 +87,7 @@
     <None Include="shaders\TransformVertexShader.vertexshader">
       <Filter>Display Utilities</Filter>
     </None>
+    <None Include="shaders\PFNMRfshader.fragmentshader" />
+    <None Include="shaders\PFNMRvshader.vertexshader" />
   </ItemGroup>
 </Project>

@@ -199,9 +199,15 @@ int main(int argc, char **argv)
     if (checkCmdLineFlag(argc, (const char**)argv, "test"))
     {
         //return newEFieldMethod(pdbFilePath, 1000.0f, inDielectric, outDielectric, relVariance);
-        ProteinDisplay display;
-        display.initDisplay();
 
+        ProteinDisplay display;
+        PDBProcessor pdbProcessor(pdbFilePath);
+        auto atoms = pdbProcessor.getAtomsFromPDB();
+        CSVReader colorcsv("AtomColors.csv");
+        auto colordat = colorcsv.readCSVFile();
+
+        display.makePFD(atoms, colordat, "test.pfd");
+        cin.get();
         return 0;
     }
 #endif

@@ -133,7 +133,8 @@ bool loadOBJ(
     return true;
 }
 
-bool loadCustomRenderFile(const char * path, vector<glm::vec3> & out_vertices, vector<glm::vec2> & out_uvs) 
+/*
+bool loadCustomRenderFile(const char * path, vector<glm::vec3> & out_atoms, vector<glm::vec2> & out_uvs) 
 {
     printf("Loading render file: %s\n", path);
 
@@ -144,7 +145,7 @@ bool loadCustomRenderFile(const char * path, vector<glm::vec3> & out_vertices, v
 
     FILE * file = fopen(path, "r");
     if (file == NULL) {
-        printf("Error: input render file is unreachable.\n");
+        printf("Error: input display file is unreachable.\n");
         getchar();
         return false;
     }
@@ -157,7 +158,7 @@ bool loadCustomRenderFile(const char * path, vector<glm::vec3> & out_vertices, v
         if (res == EOF)
             break; // EOF = End Of File. Quit the loop.
 
-        if (strcmp(lineHeader, "v") == 0) {
+        if (strcmp(lineHeader, "a") == 0) { //Entry for an atom coordinate
             glm::vec3 vertex;
             fscanf(file, "%f %f %f\n", &vertex.x, &vertex.y, &vertex.z);
             temp_vertices.push_back(vertex);
@@ -210,3 +211,4 @@ bool loadCustomRenderFile(const char * path, vector<glm::vec3> & out_vertices, v
 
     return true;
 }
+*/

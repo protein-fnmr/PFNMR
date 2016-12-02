@@ -101,7 +101,6 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <CudaCompile Include="kernel.cu" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="BMPProcessing.cpp" />
     <ClCompile Include="CSVReader.cpp" />
     <ClCompile Include="displayUtils\controls.cpp" />
     <ClCompile Include="displayUtils\objloader.cpp" />
@@ -128,6 +127,8 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="shaders\PFNMRfshader.fragmentshader" />
+    <None Include="shaders\PFNMRvshader.vertexshader" />
     <None Include="shaders\TextureFragmentShader.fragmentshader" />
     <None Include="shaders\TransformVertexShader.vertexshader" />
   </ItemGroup>

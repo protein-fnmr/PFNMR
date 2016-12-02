@@ -77,10 +77,8 @@ vector<vector<string>> CSVReader::readCSVFile()
     //Start reading through the file and adding amino acids to the list
     if (isOpen) //Can we open the file?
     {
-        cout << "Reading CSV file to obtain charges." << endl;
+        cout << "Reading CSV file..." << endl;
         string line;
-        getline(csvStream, line); //Skip the header line
-        int i = 0;
         while (getline(csvStream, line)) //Read each line through the file
         {
             auto linecontents = split(line, ",");
