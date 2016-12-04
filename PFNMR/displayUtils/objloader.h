@@ -24,4 +24,7 @@ bool loadOBJ(
     std::vector<glm::vec2> & out_uvs,
     std::vector<glm::vec3> & out_normals
 );
+
+bool loadCustomRenderFile(const char * path, std::vector<glm::vec3> & out_atomverts, std::vector<glm::vec3> & out_atomcols, std::vector<unsigned short> & out_bondindicies);
+
 #endif

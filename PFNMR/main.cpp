@@ -201,13 +201,17 @@ int main(int argc, char **argv)
         //return newEFieldMethod(pdbFilePath, 1000.0f, inDielectric, outDielectric, relVariance);
 
         ProteinDisplay display;
+        
+        /*
         PDBProcessor pdbProcessor(pdbFilePath);
         auto atoms = pdbProcessor.getAtomsFromPDB();
         CSVReader colorcsv("AtomColors.csv");
         auto colordat = colorcsv.readCSVFile();
 
         display.makePFD(atoms, colordat, "test.pfd");
-        cin.get();
+        */
+
+        display.initDisplay();
         return 0;
     }
 #endif
@@ -695,7 +699,7 @@ int newEFieldMethod(string pdbPath, const int lineresolution, const float inDiel
 
         // Calculate available memory
         auto memdielectricmatrix = (lineresolution * nAtoms * sizeof(float));
-        size_t freemem = (cudaFreeMem * 0.45f) - (nAtoms * sizeof(GPUChargeAtom)) - (nFluorines * sizeof(GPUEFP)) - memdielectricmatrix - (2 * nAtoms * sizeof(float));
+        size_t freemem = (cudaFreeMem * 0.25f) - (nAtoms * sizeof(GPUChargeAtom)) - (nFluorines * sizeof(GPUEFP)) - memdielectricmatrix - (2 * nAtoms * sizeof(float));
         if (freemem < 0)
         {
             cout << "Error: Not enough memory for this calculation!" << endl;

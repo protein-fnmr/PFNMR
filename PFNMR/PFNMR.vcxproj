@@ -127,8 +127,10 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
-    <None Include="shaders\PFNMRfshader.fragmentshader" />
-    <None Include="shaders\PFNMRvshader.vertexshader" />
+    <None Include="shaders\PFNMRwirefrag.fragmentshader" />
+    <None Include="shaders\PFNMRwirevert.vertexshader" />
+    <None Include="shaders\PFNMRtexfrag.fragmentshader" />
+    <None Include="shaders\PFNMRtexvert.vertexshader" />
     <None Include="shaders\TextureFragmentShader.fragmentshader" />
     <None Include="shaders\TransformVertexShader.vertexshader" />
   </ItemGroup>

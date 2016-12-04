@@ -24,7 +24,6 @@
 class ProteinDisplay {
 public:
     int ProteinDisplay::initDisplay();
-    int ProteinDisplay::exampleDisplay();
     void ProteinDisplay::makePFD(vector<Atom> & atoms, vector<vector<string>> & colorcsv, const char * outpath);
 };
 

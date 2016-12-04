@@ -37,7 +37,7 @@ glm::mat4 getProjectionMatrix() {
 
 
 // Initial position : on +Z
-glm::vec3 position = glm::vec3(0, 0, 5);
+glm::vec3 position = glm::vec3(0, 0, 40);
 // Initial horizontal angle : toward -Z
 float horizontalAngle = 3.14f;
 // Initial vertical angle : none
@@ -117,7 +117,7 @@ void computeMatricesFromInputs() {
     //Reset the camera
     if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
     {
-        position = glm::vec3(0, 0, 5);
+        position = glm::vec3(0, 0, 40);
         horizontalAngle = 3.14f;
         verticalAngle = 0.0f;
         initialFoV = 45.0f;
