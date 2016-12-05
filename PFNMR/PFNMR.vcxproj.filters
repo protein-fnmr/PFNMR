@@ -87,9 +87,17 @@
     <None Include="shaders\TransformVertexShader.vertexshader">
       <Filter>Display Utilities</Filter>
     </None>
-    <None Include="shaders\PFNMRtexfrag.fragmentshader" />
-    <None Include="shaders\PFNMRtexvert.vertexshader" />
-    <None Include="shaders\PFNMRwirefrag.fragmentshader" />
-    <None Include="shaders\PFNMRwirevert.vertexshader" />
+    <None Include="shaders\PFNMRtexfrag.fragmentshader">
+      <Filter>Display Utilities</Filter>
+    </None>
+    <None Include="shaders\PFNMRtexvert.vertexshader">
+      <Filter>Display Utilities</Filter>
+    </None>
+    <None Include="shaders\PFNMRwirefrag.fragmentshader">
+      <Filter>Display Utilities</Filter>
+    </None>
+    <None Include="shaders\PFNMRwirevert.vertexshader">
+      <Filter>Display Utilities</Filter>
+    </None>
   </ItemGroup>
 </Project>

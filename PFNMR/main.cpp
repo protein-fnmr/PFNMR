@@ -24,6 +24,7 @@
 #include <string>
 #include <ctime>
 #include <math.h>
+#include <iomanip>
 
 #include "PDBProcessor.h"
 #include "CSVReader.h"
@@ -33,6 +34,9 @@
 #include "helper_string.h"
 #include "ProteinDisplay.h"
 
+//TODO: REMOVE THESE
+#include "displayUtils/objloader.h"
+//#include <glm/glm.hpp>
 
 using namespace std;
 
@@ -201,17 +205,33 @@ int main(int argc, char **argv)
         //return newEFieldMethod(pdbFilePath, 1000.0f, inDielectric, outDielectric, relVariance);
 
         ProteinDisplay display;
-        
-        /*
+
+        display.initDisplay();
+        return 0;
+
         PDBProcessor pdbProcessor(pdbFilePath);
         auto atoms = pdbProcessor.getAtomsFromPDB();
         CSVReader colorcsv("AtomColors.csv");
         auto colordat = colorcsv.readCSVFile();
 
         display.makePFD(atoms, colordat, "test.pfd");
-        */
+        
+        std::vector<unsigned short> wireindicies;
+        std::vector<glm::vec3> atomverts;
+        std::vector<glm::vec3> atomcols;
+        bool res = loadCustomRenderFile("test.pfd", atomverts, atomcols, wireindicies);
 
-        display.initDisplay();
+        FILE * pFile;
+        pFile = fopen("junk.txt", "w");
+        for (int i = 0; i < wireindicies.size(); i+=2)
+        {
+            fprintf(pFile, "%i\t%i\n", wireindicies[i], wireindicies[i+1]);
+        }
+        fclose(pFile);
+        cout << "DONE" << endl;
+        cin.get();
+
+        //*/
         return 0;
     }
 #endif

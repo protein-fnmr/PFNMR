@@ -19,8 +19,10 @@
 #include <stdio.h>
 #include <string>
 #include <cstring>
+#include <fstream>
 
 #include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include "objloader.h"
 
@@ -133,47 +135,69 @@ bool loadOBJ(
     return true;
 }
 
+template <class T>
+void endswap(T *objp)
+{
+    unsigned char *memp = reinterpret_cast<unsigned char*>(objp);
+    std::reverse(memp, memp + sizeof(T));
+}
+
 bool loadCustomRenderFile(const char * path, vector<glm::vec3> & out_atomverts, vector<glm::vec3> & out_atomcols, vector<unsigned short> & out_bondindicies)
 {
     printf("Loading render file: %s\n", path);
 
-    FILE * file = fopen(path, "r");
-    if (file == NULL) {
-        printf("Error: input display file is unreachable.\n");
-        getchar();
+    ifstream file(path, ios::in | ios::binary | ios::ate);
+
+    if (file.good())
+    {
+        if (file.is_open())
+        {
+            //Read all the data into memory
+            streampos size = file.tellg();
+            file.seekg(0, ios::beg);
+            for (int pos = 0; pos < size; pos++)
+            {
+                char flag;
+                file.read(&flag, sizeof(char));
+                switch(flag)
+                {
+                case 'a':
+                {
+                    float atom[3];
+                    float color[3];
+
+                    file.read((char*)&atom, sizeof(float) * 3);
+                    glm::vec3 temp(atom[0], atom[1], atom[2]);
+                    out_atomverts.push_back(temp);
+
+                    file.read((char*)&color, sizeof(float) * 3);
+                    glm::vec3 temp2(color[0], color[1], color[2]);
+                    out_atomcols.push_back(temp2);
+
+                    pos += sizeof(float) * 6;
+                    break;
+                }
+                case 'b':
+                    int a, b;
+                    file.read((char*)&a, sizeof(unsigned short));
+                    file.read((char*)&b, sizeof(unsigned short));
+                    out_bondindicies.push_back(a);
+                    out_bondindicies.push_back(b);
+                    pos += sizeof(unsigned short) * 2;
+                }
+            }
+            file.close();
+            return true;
+        }
+        else
+        {
+            printf("Error: Unable to open input file %s\n", path);
+            return false;
+        }
+    }
+    else
+    {
+        printf("Error: File %s opening is not \"good\".  Is the file open elsewhere?\n", path);
         return false;
     }
-
-    while (1) {
-
-        char lineHeader[128];
-        // read the first word of the line
-        int res = fscanf(file, "%s", lineHeader);
-        if (res == EOF)
-            break; // EOF = End Of File. Quit the loop.
-
-        if (strcmp(lineHeader, "a") == 0) { //Entry for an atom coordinate
-            glm::vec3 vertex;
-            glm::vec3 color;
-            fscanf(file, "%f %f %f %f %f %f\n", &vertex.x, &vertex.y, &vertex.z, &color.x, &color.y, &color.z);
-            out_atomverts.push_back(vertex);
-            out_atomcols.push_back(color);
-        }
-        else if (strcmp(lineHeader, "b") == 0) {
-            auto bond = new unsigned short[2];
-            fscanf(file, "%u %u\n", &bond[0], &bond[1]);
-
-            out_bondindicies.push_back(bond[0]);
-            out_bondindicies.push_back(bond[1]);
-        }
-
-        else {
-            // Probably a comment, eat up the rest of the line
-            char stupidBuffer[1000];
-            fgets(stupidBuffer, 1000, file);
-        }
-
-    }
-
-    return true;
 }

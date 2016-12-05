@@ -20,6 +20,7 @@
 #include <iostream>
 #include <stdlib.h>
 #include <vector>
+#include <fstream>
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -306,47 +307,66 @@ void ProteinDisplay::makePFD(vector<Atom> & atoms, vector<vector<string>> & colo
     int nColors = colorcsv.size();
 
     //Setup stuff for file writing
-    FILE* file;
-    fopen_s(&file, outpath, "wb");
-
-    //Write all the atom coordinates/colors to the file
-    printf("Writing atom coordinate data to %s\n", outpath);
-    for (int i = 0; i < nAtoms; i++)
+    ofstream file("test.pfd", ios::out | ios::binary);
+    if (file.good())
     {
-        string cr = "0", cg = "0", cb = "0";
-        string elem = atoms[i].element;
-        for (int j = 0; j < nColors; j++)
+
+        //Write all the atom coordinates/colors to the file
+        printf("Writing atom coordinate data to %s\n", outpath);
+        char buffer[25]; //setup the buffer
+        char flag = 'a'; //set the data type flag
+        memcpy(buffer, &flag, sizeof(char));
+        for (int i = 0; i < nAtoms; i++)
         {
-            if (colorcsv[j][0] == elem)
+            string elem = atoms[i].element;           
+
+            float cr = 0, cg = 0, cb = 0;
+            for (int j = 0; j < nColors; j++)
             {
-                cr = colorcsv[j][1];
-                cg = colorcsv[j][2];
-                cb = colorcsv[j][3];
-                break;
+                if (colorcsv[j][0] == elem)
+                {
+                    cr = stof(colorcsv[j][1]);
+                    cg = stof(colorcsv[j][2]);
+                    cb = stof(colorcsv[j][3]);
+                    break;
+                }
+            }
+            memcpy(&buffer[sizeof(char)], &atoms[i].x, sizeof(float));
+            memcpy(&buffer[sizeof(char) + sizeof(float)], &atoms[i].y, sizeof(float));
+            memcpy(&buffer[sizeof(char) + (2 * sizeof(float))], &atoms[i].z, sizeof(float));
+            memcpy(&buffer[sizeof(char) + (3 * sizeof(float))], &cr, sizeof(float));
+            memcpy(&buffer[sizeof(char) + (4 * sizeof(float))], &cg, sizeof(float));
+            memcpy(&buffer[sizeof(char) + (5 * sizeof(float))], &cb, sizeof(float));
+            file.write(buffer, sizeof(char) + (6 * sizeof(float))); //write the buffer to the file
+        }
+        //Write all the bond data
+        flag = 'b';
+        memcpy(buffer, &flag, sizeof(char));
+        printf("Writing bond map data to %s\n", outpath);
+        for (unsigned short i = 0; i < nAtoms; i++)
+        {
+            
+            for (unsigned short j = 0; j < i; j++)
+            {
+                float diffx = atoms[i].x - atoms[j].x;
+                float diffy = atoms[i].y - atoms[j].y;
+                float diffz = atoms[i].z - atoms[j].z;
+                float distance = sqrtf((diffx * diffx) + (diffy * diffy) + (diffz * diffz));
+                float threshold = (atoms[i].vdw + atoms[i].vdw) * THRESHOLDMOD;
+
+                if (distance <= threshold)
+                {
+                    memcpy(&buffer[sizeof(char)], &i, sizeof(unsigned short));
+                    memcpy(&buffer[sizeof(char) + sizeof(unsigned short)], &j, sizeof(unsigned short));
+                    file.write(buffer, sizeof(char) + (2 * sizeof(unsigned short)));
+                }
             }
         }
-        fprintf(file, "%c %f %f %f %s %s %s\n", 'a', atoms[i].x, atoms[i].y, atoms[i].z, cr.c_str(), cg.c_str(), cb.c_str());
+        file.close();
     }
-
-    //Write all the bond data
-    printf("Writing bond map data to %s\n", outpath);
-    for (int i = 0; i < nAtoms; i++)
+    else
     {
-        for (int j = 0; j < i; j++)
-        {
-            float diffx = atoms[i].x - atoms[j].x;
-            float diffy = atoms[i].y - atoms[j].y;
-            float diffz = atoms[i].z - atoms[j].z;
-            float distance = sqrtf((diffx * diffx) + (diffy * diffy) + (diffz * diffz));
-            float threshold = (atoms[i].vdw + atoms[i].vdw) * THRESHOLDMOD;
-            if (distance <= threshold)
-            {
-                fprintf(file, "%c %i %i\n", 'b', i, j);
-            }
-        }
+        printf("Error: File writing is not \"good\".  Is it open elsewhere?\n");
     }
-
-    fputc(0x3b, file); //end of file
-    fclose(file);
     printf("Done writing display file %s\n", outpath);
 }
