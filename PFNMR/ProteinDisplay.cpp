@@ -28,13 +28,12 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "ProteinDisplay.h"
+#include "PFDProcessor.h"
 #include "displayUtils/shader.h"
 #include "displayUtils/texture.h"
 #include "displayUtils/controls.h"
 #include "displayUtils/objloader.h"
 #include "displayUtils/vboindexer.h"
-
-#define THRESHOLDMOD 0.5
 
 using namespace glm;
 using namespace std;
@@ -94,76 +93,119 @@ int ProteinDisplay::initDisplay()
     glDepthFunc(GL_LESS);
 
     // Cull triangles which normal is not towards the camera
-    glEnable(GL_CULL_FACE);
+    //glEnable(GL_CULL_FACE);
+
+    glDisable(GL_CULL_FACE);
 
     GLuint VertexArrayID;
     glGenVertexArrays(1, &VertexArrayID);
     glBindVertexArray(VertexArrayID);
 
     // Create and compile our GLSL program from the shaders
-    GLuint programID = LoadShaders("PFNMRtexvert.vertexshader", "PFNMRtexfrag.fragmentshader");
+    GLuint texprogramID = LoadShaders("PFNMRtexvert.vertexshader", "PFNMRtexfrag.fragmentshader");
     GLuint wireprogramID = LoadShaders("PFNMRwirevert.vertexshader", "PFNMRwirefrag.fragmentshader");
 
     // Get a handle for our "MVP" uniform
-    GLuint MatrixID = glGetUniformLocation(programID, "MVP");
+    GLuint MatrixID = glGetUniformLocation(texprogramID, "MVP");
     GLuint wirematID = glGetUniformLocation(wireprogramID, "MVP");
 
     // Load the texture
     //GLuint Texture = loadBMP_custom("uvmap.bmp");
-    GLuint Texture = loadDDS("uvmap.dds");
+    //GLuint Texture = loadDDS("uvmap.dds");
 
     // Get a handle for our "myTextureSampler" uniform
-    GLuint TextureID = glGetUniformLocation(programID, "myTextureSampler");
+    GLuint TextureID = glGetUniformLocation(texprogramID, "myTextureSampler");
 
     // Read our .obj file
-    std::vector<glm::vec3> vertices;
-    std::vector<glm::vec2> uvs;
-    std::vector<glm::vec3> normals; // Won't be used at the moment.
+    vector<vec3> vertices;
+    vector<vec2> uvs;
+    vector<vec3> normals; // Won't be used at the moment.
     bool res = loadOBJ("cube.obj", vertices, uvs, normals);
 
-    std::vector<unsigned short> indices;
-    std::vector<glm::vec3> indexed_vertices;
-    std::vector<glm::vec2> indexed_uvs;
-    std::vector<glm::vec3> indexed_normals;
+    vector<unsigned short> indices;
+    vector<vec3> indexed_vertices;
+    vector<vec2> indexed_uvs;
+    vector<vec3> indexed_normals;
     indexVBO(vertices, uvs, normals, indices, indexed_vertices, indexed_uvs, indexed_normals);
 
     // Load it into a VBO
+    /*
     GLuint vertexbuffer;
     glGenBuffers(1, &vertexbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-    glBufferData(GL_ARRAY_BUFFER, indexed_vertices.size() * sizeof(glm::vec3), &indexed_vertices[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, indexed_vertices.size() * sizeof(vec3), &indexed_vertices[0], GL_STATIC_DRAW);
 
     GLuint uvbuffer;
     glGenBuffers(1, &uvbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
-    glBufferData(GL_ARRAY_BUFFER, indexed_uvs.size() * sizeof(glm::vec2), &indexed_uvs[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, indexed_uvs.size() * sizeof(vec2), &indexed_uvs[0], GL_STATIC_DRAW);
 
     GLuint normalbuffer;
     glGenBuffers(1, &normalbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, normalbuffer);
-    glBufferData(GL_ARRAY_BUFFER, indexed_normals.size() * sizeof(glm::vec3), &indexed_normals[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, indexed_normals.size() * sizeof(vec3), &indexed_normals[0], GL_STATIC_DRAW);
 
     // Generate a buffer for the indices as well
     GLuint elementbuffer;
     glGenBuffers(1, &elementbuffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned short), &indices[0], GL_STATIC_DRAW);
+    */
 
-    //All the stuff for a test wireframe cube
-    std::vector<unsigned short> wireindicies;
-    std::vector<glm::vec3> atomverts;
-    std::vector<glm::vec3> atomcols;
-    res = loadCustomRenderFile("test.pfd", atomverts, atomcols, wireindicies);
+    //Load everything needed for rendering
+    vector<unsigned short> wireindicies;
+    vector<vec3> atomverts;
+    vector<vec3> atomcols;
+    vector<unsigned short> texindicies;
+    vector<vec3> texverts;
+    vector<vec2> texcoords;
+    vector<GLuint> textureIDs;
+    PFDReader reader;
+    openPFDFileReader(&reader, "test.pfd");
+    bool trytexload = loadPFDTextureFile(&reader, atomverts, atomcols, wireindicies, texverts, textureIDs);
+    closePFDFileReader(&reader);
+
+    setTextureCap(textureIDs.size() - 1);
+
+    for (int i = 0; i < textureIDs.size(); i++)
+    {
+        texindicies.push_back((i * 4));
+        texindicies.push_back((i * 4) + 2);
+        texindicies.push_back((i * 4) + 1);
+        texindicies.push_back((i * 4));
+        texindicies.push_back((i * 4) + 3);
+        texindicies.push_back((i * 4) + 2);
+    }
+
+    texcoords.push_back(vec2(0, 1));
+    texcoords.push_back(vec2(1, 1));
+    texcoords.push_back(vec2(1, 0));
+    texcoords.push_back(vec2(0, 0));
+
+    GLuint texelembuff;
+    glGenBuffers(1, &texelembuff);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, texelembuff);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, texindicies.size() * sizeof(unsigned short), &texindicies[0], GL_STATIC_DRAW);
+
+    GLuint texvertsbuffer;
+    glGenBuffers(1, &texvertsbuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, texvertsbuffer);
+    glBufferData(GL_ARRAY_BUFFER, texverts.size() * sizeof(vec3), &texverts[0], GL_STATIC_DRAW);
+
+    GLuint texcoordbuffer;
+    glGenBuffers(1, &texcoordbuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, texcoordbuffer);
+    glBufferData(GL_ARRAY_BUFFER, texcoords.size() * sizeof(vec2), &texcoords[0], GL_STATIC_DRAW);
 
     GLuint wirevertbuffer;
     glGenBuffers(1, &wirevertbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, wirevertbuffer);
-    glBufferData(GL_ARRAY_BUFFER, atomverts.size() * sizeof(glm::vec3), &atomverts[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, atomverts.size() * sizeof(vec3), &atomverts[0], GL_STATIC_DRAW);
 
     GLuint wirecolbuffer;
     glGenBuffers(1, &wirecolbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, wirecolbuffer);
-    glBufferData(GL_ARRAY_BUFFER, atomcols.size() * sizeof(glm::vec3), &atomcols[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, atomcols.size() * sizeof(vec3), &atomcols[0], GL_STATIC_DRAW);
 
     GLuint wireelembuff;
     glGenBuffers(1, &wireelembuff);
@@ -177,28 +219,27 @@ int ProteinDisplay::initDisplay()
 
         //Display all the shader stuff
         // Use our shader
-        glUseProgram(programID);
+        glUseProgram(texprogramID);
 
         // Compute the MVP matrix from keyboard and mouse input
         computeMatricesFromInputs();
-        glm::mat4 ProjectionMatrix = getProjectionMatrix();
-        glm::mat4 ViewMatrix = getViewMatrix();
-        glm::mat4 ModelMatrix = glm::mat4(1.0);
-        glm::mat4 MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
-
+        mat4 ProjectionMatrix = getProjectionMatrix();
+        mat4 ViewMatrix = getViewMatrix();
+        mat4 ModelMatrix = mat4(1.0);
+        mat4 MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
         // Send our transformation to the currently bound shader, 
         // in the "MVP" uniform
         glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
 
         // Bind our texture in Texture Unit 0
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, Texture);
+        glBindTexture(GL_TEXTURE_2D, textureIDs[getTextureNum()]);
         // Set our "myTextureSampler" sampler to user Texture Unit 0
         glUniform1i(TextureID, 0);
 
         // 1rst attribute buffer : vertices
         glEnableVertexAttribArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+        glBindBuffer(GL_ARRAY_BUFFER, texvertsbuffer);
         glVertexAttribPointer(
             0,                  // attribute
             3,                  // size
@@ -210,7 +251,7 @@ int ProteinDisplay::initDisplay()
 
         // 2nd attribute buffer : UVs
         glEnableVertexAttribArray(1);
-        glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
+        glBindBuffer(GL_ARRAY_BUFFER, texcoordbuffer);
         glVertexAttribPointer(
             1,                                // attribute
             2,                                // size
@@ -220,14 +261,14 @@ int ProteinDisplay::initDisplay()
             (void*)0                          // array buffer offset
         );
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, texelembuff);
 
         // Draw the triangles !
         glDrawElements(
             GL_TRIANGLES,      // mode
-            indices.size(),    // count
+            texindicies.size(),                  // count
             GL_UNSIGNED_SHORT,   // type
-            (void*)0           // element array buffer offset
+            (void*)(0)           // element array buffer offset
         );
 
         //Display the wireframe stuff
@@ -281,11 +322,10 @@ int ProteinDisplay::initDisplay()
         glfwWindowShouldClose(window) == 0);
 
     // Cleanup VBO and shader
-    glDeleteBuffers(1, &vertexbuffer);
-    glDeleteBuffers(1, &uvbuffer);
-    glDeleteBuffers(1, &normalbuffer);
-    glDeleteBuffers(1, &elementbuffer);
-    glDeleteProgram(programID);
+    glDeleteProgram(texprogramID);
+    glDeleteBuffers(1, &texvertsbuffer);
+    glDeleteBuffers(1, &texcoordbuffer);
+    glDeleteBuffers(1, &texelembuff);
     glDeleteTextures(1, &TextureID);
     glDeleteVertexArrays(1, &VertexArrayID);
 
@@ -298,75 +338,4 @@ int ProteinDisplay::initDisplay()
     glfwTerminate();
 
     return 0;
-}
-
-void ProteinDisplay::makePFD(vector<Atom> & atoms, vector<vector<string>> & colorcsv, const char * outpath)
-{
-    //Useful numbers for later
-    int nAtoms = atoms.size();
-    int nColors = colorcsv.size();
-
-    //Setup stuff for file writing
-    ofstream file("test.pfd", ios::out | ios::binary);
-    if (file.good())
-    {
-
-        //Write all the atom coordinates/colors to the file
-        printf("Writing atom coordinate data to %s\n", outpath);
-        char buffer[25]; //setup the buffer
-        char flag = 'a'; //set the data type flag
-        memcpy(buffer, &flag, sizeof(char));
-        for (int i = 0; i < nAtoms; i++)
-        {
-            string elem = atoms[i].element;           
-
-            float cr = 0, cg = 0, cb = 0;
-            for (int j = 0; j < nColors; j++)
-            {
-                if (colorcsv[j][0] == elem)
-                {
-                    cr = stof(colorcsv[j][1]);
-                    cg = stof(colorcsv[j][2]);
-                    cb = stof(colorcsv[j][3]);
-                    break;
-                }
-            }
-            memcpy(&buffer[sizeof(char)], &atoms[i].x, sizeof(float));
-            memcpy(&buffer[sizeof(char) + sizeof(float)], &atoms[i].y, sizeof(float));
-            memcpy(&buffer[sizeof(char) + (2 * sizeof(float))], &atoms[i].z, sizeof(float));
-            memcpy(&buffer[sizeof(char) + (3 * sizeof(float))], &cr, sizeof(float));
-            memcpy(&buffer[sizeof(char) + (4 * sizeof(float))], &cg, sizeof(float));
-            memcpy(&buffer[sizeof(char) + (5 * sizeof(float))], &cb, sizeof(float));
-            file.write(buffer, sizeof(char) + (6 * sizeof(float))); //write the buffer to the file
-        }
-        //Write all the bond data
-        flag = 'b';
-        memcpy(buffer, &flag, sizeof(char));
-        printf("Writing bond map data to %s\n", outpath);
-        for (unsigned short i = 0; i < nAtoms; i++)
-        {
-            
-            for (unsigned short j = 0; j < i; j++)
-            {
-                float diffx = atoms[i].x - atoms[j].x;
-                float diffy = atoms[i].y - atoms[j].y;
-                float diffz = atoms[i].z - atoms[j].z;
-                float distance = sqrtf((diffx * diffx) + (diffy * diffy) + (diffz * diffz));
-                float threshold = (atoms[i].vdw + atoms[i].vdw) * THRESHOLDMOD;
-
-                if (distance <= threshold)
-                {
-                    memcpy(&buffer[sizeof(char)], &i, sizeof(unsigned short));
-                    memcpy(&buffer[sizeof(char) + sizeof(unsigned short)], &j, sizeof(unsigned short));
-                    file.write(buffer, sizeof(char) + (2 * sizeof(unsigned short)));
-                }
-            }
-        }
-        file.close();
-    }
-    else
-    {
-        printf("Error: File writing is not \"good\".  Is it open elsewhere?\n");
-    }
-    printf("Done writing display file %s\n", outpath);
 }

@@ -35,6 +35,18 @@ glm::mat4 getProjectionMatrix() {
     return ProjectionMatrix;
 }
 
+int textureID = 0;
+int cap = 0;
+
+int getTextureNum()
+{
+    return textureID;
+}
+
+void setTextureCap(int val)
+{
+    cap = val;
+}
 
 // Initial position : on +Z
 glm::vec3 position = glm::vec3(0, 0, 40);
@@ -45,9 +57,10 @@ float verticalAngle = 0.0f;
 // Initial Field of View
 float initialFoV = 45.0f;
 
-float speed = 3.0f; // 3 units / second
+float speed = 10.0f; // 3 units / second
 float mouseSpeed = 0.0025f;
 
+bool statelock = true;
 
 
 void computeMatricesFromInputs() {
@@ -122,6 +135,26 @@ void computeMatricesFromInputs() {
         verticalAngle = 0.0f;
         initialFoV = 45.0f;
     }
+
+    //Change texture number
+    if (glfwGetKey(window, GLFW_KEY_KP_ADD) == GLFW_PRESS && statelock) {
+        textureID++;
+        statelock = !statelock;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_KP_SUBTRACT) == GLFW_PRESS && statelock) {
+        textureID--;
+        statelock = !statelock;
+    }
+
+    if ((glfwGetKey(window, GLFW_KEY_KP_ADD) == GLFW_RELEASE && glfwGetKey(window, GLFW_KEY_KP_SUBTRACT) == GLFW_RELEASE) && !statelock) {
+        statelock = !statelock;
+    }
+
+    if (textureID > cap)
+        textureID = cap;
+    if (textureID < 0)
+        textureID = 0;
 
     float FoV = initialFoV;// - 5 * glfwGetMouseWheel(); // Now GLFW 3 requires setting up a callback for this. It's a bit too complicated for this beginner's tutorial, so it's disabled instead.
 

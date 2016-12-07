@@ -19,12 +19,9 @@
 #ifndef PROTEINDISPLAY_H
 #define PROTEINDISPLAY_H
 
-#include "GPUTypes.h"
-
 class ProteinDisplay {
 public:
     int ProteinDisplay::initDisplay();
-    void ProteinDisplay::makePFD(vector<Atom> & atoms, vector<vector<string>> & colorcsv, const char * outpath);
 };
 
 #endif
