@@ -1033,7 +1033,6 @@ int pfdFullVisualizationFileGen(string pdbFilePath, int imgSize, int nSlices, fl
             }
 
             // write out a frame
-            //GifWriteFrame(&gifWriter, image, imgSize, imgSize, GIF_DELAY);
             writeDielectricFrameData(&pfdwriter, image, planedims, imgSize);
             delete[] image;
         }

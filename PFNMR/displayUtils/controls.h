@@ -23,5 +23,5 @@ glm::mat4 getViewMatrix();
 glm::mat4 getProjectionMatrix();
 int getTextureNum();
 void setTextureCap(int val);
-
+float getAlphaMod();
 #endif

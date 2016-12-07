@@ -48,6 +48,13 @@ void setTextureCap(int val)
     cap = val;
 }
 
+float alpha = 1.0f;
+
+float getAlphaMod()
+{
+    return alpha;
+}
+
 // Initial position : on +Z
 glm::vec3 position = glm::vec3(0, 0, 40);
 // Initial horizontal angle : toward -Z
@@ -61,6 +68,7 @@ float speed = 10.0f; // 3 units / second
 float mouseSpeed = 0.0025f;
 
 bool statelock = true;
+bool statelock2 = true;
 
 
 void computeMatricesFromInputs() {
@@ -150,11 +158,29 @@ void computeMatricesFromInputs() {
     if ((glfwGetKey(window, GLFW_KEY_KP_ADD) == GLFW_RELEASE && glfwGetKey(window, GLFW_KEY_KP_SUBTRACT) == GLFW_RELEASE) && !statelock) {
         statelock = !statelock;
     }
-
     if (textureID > cap)
         textureID = cap;
     if (textureID < 0)
         textureID = 0;
+
+    //Change the texture alpha
+    if (glfwGetKey(window, GLFW_KEY_KP_9) == GLFW_PRESS && statelock2) {
+        alpha += 0.05f;
+        statelock2 = !statelock2;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_KP_6) == GLFW_PRESS && statelock2) {
+        alpha -= 0.05f;
+        statelock2 = !statelock2;
+    }
+
+    if ((glfwGetKey(window, GLFW_KEY_KP_9) == GLFW_RELEASE && glfwGetKey(window, GLFW_KEY_KP_6) == GLFW_RELEASE) && !statelock2) {
+        statelock2 = !statelock2;
+    }
+    if (alpha > 1.0f)
+        alpha = 1.0f;
+    if (alpha < 0.0)
+        alpha = 0.0;
 
     float FoV = initialFoV;// - 5 * glfwGetMouseWheel(); // Now GLFW 3 requires setting up a callback for this. It's a bit too complicated for this beginner's tutorial, so it's disabled instead.
 

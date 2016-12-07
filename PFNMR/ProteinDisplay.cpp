@@ -76,7 +76,7 @@ int ProteinDisplay::initDisplay()
     }
 
     // Ensure we can capture the escape key being pressed below
-    glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
+    glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_FALSE);
     // Hide the mouse and enable unlimited movement
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
@@ -89,11 +89,12 @@ int ProteinDisplay::initDisplay()
 
     // Enable depth test
     glEnable(GL_DEPTH_TEST);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     // Accept fragment if it closer to the camera than the former one
     glDepthFunc(GL_LESS);
-
-    // Cull triangles which normal is not towards the camera
-    //glEnable(GL_CULL_FACE);
 
     glDisable(GL_CULL_FACE);
 
@@ -109,53 +110,13 @@ int ProteinDisplay::initDisplay()
     GLuint MatrixID = glGetUniformLocation(texprogramID, "MVP");
     GLuint wirematID = glGetUniformLocation(wireprogramID, "MVP");
 
-    // Load the texture
-    //GLuint Texture = loadBMP_custom("uvmap.bmp");
-    //GLuint Texture = loadDDS("uvmap.dds");
-
     // Get a handle for our "myTextureSampler" uniform
     GLuint TextureID = glGetUniformLocation(texprogramID, "myTextureSampler");
-
-    // Read our .obj file
-    vector<vec3> vertices;
-    vector<vec2> uvs;
-    vector<vec3> normals; // Won't be used at the moment.
-    bool res = loadOBJ("cube.obj", vertices, uvs, normals);
-
-    vector<unsigned short> indices;
-    vector<vec3> indexed_vertices;
-    vector<vec2> indexed_uvs;
-    vector<vec3> indexed_normals;
-    indexVBO(vertices, uvs, normals, indices, indexed_vertices, indexed_uvs, indexed_normals);
-
-    // Load it into a VBO
-    /*
-    GLuint vertexbuffer;
-    glGenBuffers(1, &vertexbuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-    glBufferData(GL_ARRAY_BUFFER, indexed_vertices.size() * sizeof(vec3), &indexed_vertices[0], GL_STATIC_DRAW);
-
-    GLuint uvbuffer;
-    glGenBuffers(1, &uvbuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
-    glBufferData(GL_ARRAY_BUFFER, indexed_uvs.size() * sizeof(vec2), &indexed_uvs[0], GL_STATIC_DRAW);
-
-    GLuint normalbuffer;
-    glGenBuffers(1, &normalbuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, normalbuffer);
-    glBufferData(GL_ARRAY_BUFFER, indexed_normals.size() * sizeof(vec3), &indexed_normals[0], GL_STATIC_DRAW);
-
-    // Generate a buffer for the indices as well
-    GLuint elementbuffer;
-    glGenBuffers(1, &elementbuffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned short), &indices[0], GL_STATIC_DRAW);
-    */
 
     //Load everything needed for rendering
     vector<unsigned short> wireindicies;
     vector<vec3> atomverts;
-    vector<vec3> atomcols;
+    vector<vec4> atomcols;
     vector<unsigned short> texindicies;
     vector<vec3> texverts;
     vector<vec2> texcoords;
@@ -165,8 +126,6 @@ int ProteinDisplay::initDisplay()
     bool trytexload = loadPFDTextureFile(&reader, atomverts, atomcols, wireindicies, texverts, textureIDs);
     closePFDFileReader(&reader);
 
-    setTextureCap(textureIDs.size() - 1);
-
     for (int i = 0; i < textureIDs.size(); i++)
     {
         texindicies.push_back((i * 4));
@@ -175,12 +134,16 @@ int ProteinDisplay::initDisplay()
         texindicies.push_back((i * 4));
         texindicies.push_back((i * 4) + 3);
         texindicies.push_back((i * 4) + 2);
+
+        
+        texcoords.push_back(vec2(1, 0));
+        texcoords.push_back(vec2(1, 1));
+        texcoords.push_back(vec2(0, 1));
+        texcoords.push_back(vec2(0, 0));
+        
     }
 
-    texcoords.push_back(vec2(0, 1));
-    texcoords.push_back(vec2(1, 1));
-    texcoords.push_back(vec2(1, 0));
-    texcoords.push_back(vec2(0, 0));
+    setTextureCap(textureIDs.size() - 1);
 
     GLuint texelembuff;
     glGenBuffers(1, &texelembuff);
@@ -212,14 +175,19 @@ int ProteinDisplay::initDisplay()
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, wireelembuff);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, wireindicies.size() * sizeof(unsigned short), &wireindicies[0], GL_STATIC_DRAW);
 
+    //Setup for dynamic alpha control
+    GLint alphaloc = glGetUniformLocation(texprogramID, "inAlpha");
+    if (alphaloc == -1)
+    {
+        printf("Error: Alpha channel not corrently accessed.");
+        return 1;
+    }
+
+    glUniform1f(alphaloc, 1.0f);
     do {
 
         // Clear the screen
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        //Display all the shader stuff
-        // Use our shader
-        glUseProgram(texprogramID);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);        
 
         // Compute the MVP matrix from keyboard and mouse input
         computeMatricesFromInputs();
@@ -227,10 +195,49 @@ int ProteinDisplay::initDisplay()
         mat4 ViewMatrix = getViewMatrix();
         mat4 ModelMatrix = mat4(1.0);
         mat4 MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
+
+        //Display the wireframe stuff
+        glUseProgram(wireprogramID);
+
+        glUniformMatrix4fv(wirematID, 1, GL_FALSE, &MVP[0][0]);
+
+        glEnableVertexAttribArray(2);
+        glBindBuffer(GL_ARRAY_BUFFER, wirevertbuffer);
+        glVertexAttribPointer(
+            2,                  // attribute. No particular reason for 0, but must match the layout in the shader.
+            3,                  // size
+            GL_FLOAT,           // type
+            GL_FALSE,           // normalized?
+            0,                  // stride
+            (void*)0            // array buffer offset
+        );
+
+        glEnableVertexAttribArray(3);
+        glBindBuffer(GL_ARRAY_BUFFER, wirecolbuffer);
+        glVertexAttribPointer(
+            3,                  // attribute. No particular reason for 0, but must match the layout in the shader.
+            4,                  // size
+            GL_FLOAT,           // type
+            GL_FALSE,           // normalized?
+            0,                  // stride
+            (void*)0            // array buffer offset
+        );
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, wireelembuff);
+
+        glDrawElements(
+            GL_LINES,      // mode
+            wireindicies.size(),    // count
+            GL_UNSIGNED_SHORT,   // type
+            (void*)0           // element array buffer offset
+        );
+
         // Send our transformation to the currently bound shader, 
         // in the "MVP" uniform
-        glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
+        glUseProgram(texprogramID);
 
+        glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
+        glUniform1f(alphaloc, getAlphaMod());
         // Bind our texture in Texture Unit 0
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, textureIDs[getTextureNum()]);
@@ -266,47 +273,10 @@ int ProteinDisplay::initDisplay()
         // Draw the triangles !
         glDrawElements(
             GL_TRIANGLES,      // mode
-            texindicies.size(),                  // count
+            6,                  // count
             GL_UNSIGNED_SHORT,   // type
-            (void*)(0)           // element array buffer offset
+            (void*)(getTextureNum() * sizeof(unsigned short) * 6)           // element array buffer offset
         );
-
-        //Display the wireframe stuff
-        glUseProgram(wireprogramID);
-
-        glUniformMatrix4fv(wirematID, 1, GL_FALSE, &MVP[0][0]);
-
-        glEnableVertexAttribArray(2);
-        glBindBuffer(GL_ARRAY_BUFFER, wirevertbuffer);
-        glVertexAttribPointer(
-            2,                  // attribute. No particular reason for 0, but must match the layout in the shader.
-            3,                  // size
-            GL_FLOAT,           // type
-            GL_FALSE,           // normalized?
-            0,                  // stride
-            (void*)0            // array buffer offset
-        );
-
-        glEnableVertexAttribArray(3);
-        glBindBuffer(GL_ARRAY_BUFFER, wirecolbuffer);
-        glVertexAttribPointer(
-            3,                  // attribute. No particular reason for 0, but must match the layout in the shader.
-            3,                  // size
-            GL_FLOAT,           // type
-            GL_FALSE,           // normalized?
-            0,                  // stride
-            (void*)0            // array buffer offset
-        );
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, wireelembuff);
-
-        glDrawElements(
-            GL_LINES,      // mode
-            wireindicies.size(),    // count
-            GL_UNSIGNED_SHORT,   // type
-            (void*)0           // element array buffer offset
-        );
-
 
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);

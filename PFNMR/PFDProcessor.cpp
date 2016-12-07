@@ -169,7 +169,7 @@ bool loadPFDFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, vector<gl
     }
 }
 
-bool loadPFDTextureFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, vector<glm::vec3> & out_atomcols, vector<unsigned short> & out_bondindicies, vector<glm::vec3> & out_texverts, vector<GLuint> & texIDs)
+bool loadPFDTextureFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, vector<glm::vec4> & out_atomcols, vector<unsigned short> & out_bondindicies, vector<glm::vec3> & out_texverts, vector<GLuint> & texIDs)
 {
     if (reader->file.is_open())
     {
@@ -193,7 +193,7 @@ bool loadPFDTextureFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, ve
                 out_atomverts.push_back(temp);
 
                 reader->file.read((char*)&color, sizeof(float) * 3);
-                glm::vec3 temp2(color[0], color[1], color[2]);
+                glm::vec4 temp2(color[0], color[1], color[2], 1.0f);
                 out_atomcols.push_back(temp2);
 
                 pos += sizeof(float) * 6;
@@ -228,11 +228,11 @@ bool loadPFDTextureFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, ve
                 unsigned char * data;
                 data = new unsigned char[sidesq * 4 * sizeof(char)];
                 reader->file.read((char*)data, sidesq * 4 * sizeof(char));
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, sideres, sideres, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sideres, sideres, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
                 delete[] data;
 
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
                 glGenerateMipmap(GL_TEXTURE_2D);
