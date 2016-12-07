@@ -85,7 +85,7 @@ int ProteinDisplay::initDisplay()
     glfwSetCursorPos(window, 1024 / 2, 768 / 2);
 
     // Dark black background
-    glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
     // Enable depth test
     glEnable(GL_DEPTH_TEST);
@@ -168,7 +168,7 @@ int ProteinDisplay::initDisplay()
     GLuint wirecolbuffer;
     glGenBuffers(1, &wirecolbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, wirecolbuffer);
-    glBufferData(GL_ARRAY_BUFFER, atomcols.size() * sizeof(vec3), &atomcols[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, atomcols.size() * sizeof(vec4), &atomcols[0], GL_STATIC_DRAW);
 
     GLuint wireelembuff;
     glGenBuffers(1, &wireelembuff);
