@@ -15,10 +15,11 @@
 
 // C++ code for doing controls in the window
 // Made from code taken from http://www.opengl-tutorial.org/, beer is in the mail.
+
 #include <GLFW/glfw3.h>
 extern GLFWwindow* window; // The "extern" keyword here is to access the variable "window" declared in tutorialXXX.cpp. This is a hack to keep the tutorials simple. Please avoid this.
 
-                           // Include GLM
+// Include GLM
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 using namespace glm;
@@ -158,6 +159,7 @@ void computeMatricesFromInputs() {
     if ((glfwGetKey(window, GLFW_KEY_KP_ADD) == GLFW_RELEASE && glfwGetKey(window, GLFW_KEY_KP_SUBTRACT) == GLFW_RELEASE) && !statelock) {
         statelock = !statelock;
     }
+
     if (textureID > cap)
         textureID = cap;
     if (textureID < 0)

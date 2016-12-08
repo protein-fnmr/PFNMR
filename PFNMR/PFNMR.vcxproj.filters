@@ -14,22 +14,13 @@
     <ClCompile Include="GPUTypes.h">
       <Filter>Misc Headers</Filter>
     </ClCompile>
-    <ClCompile Include="displayUtils\texture.cpp">
-      <Filter>Display Utilities</Filter>
-    </ClCompile>
     <ClCompile Include="displayUtils\shader.cpp">
-      <Filter>Display Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="displayUtils\objloader.cpp">
       <Filter>Display Utilities</Filter>
     </ClCompile>
     <ClCompile Include="displayUtils\controls.cpp">
       <Filter>Display Utilities</Filter>
     </ClCompile>
     <ClCompile Include="ProteinDisplay.cpp">
-      <Filter>Display Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="displayUtils\vboindexer.cpp">
       <Filter>Display Utilities</Filter>
     </ClCompile>
     <ClCompile Include="PFDProcessor.cpp">
@@ -52,22 +43,13 @@
     <ClInclude Include="helper_string.h">
       <Filter>Misc Headers</Filter>
     </ClInclude>
-    <ClInclude Include="displayUtils\texture.h">
-      <Filter>Display Utilities</Filter>
-    </ClInclude>
     <ClInclude Include="displayUtils\shader.h">
-      <Filter>Display Utilities</Filter>
-    </ClInclude>
-    <ClInclude Include="displayUtils\objloader.h">
       <Filter>Display Utilities</Filter>
     </ClInclude>
     <ClInclude Include="displayUtils\controls.h">
       <Filter>Display Utilities</Filter>
     </ClInclude>
     <ClInclude Include="ProteinDisplay.h">
-      <Filter>Display Utilities</Filter>
-    </ClInclude>
-    <ClInclude Include="displayUtils\vboindexer.h">
       <Filter>Display Utilities</Filter>
     </ClInclude>
     <ClInclude Include="PFDProcessor.h">
@@ -87,12 +69,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
-    <None Include="shaders\TextureFragmentShader.fragmentshader">
-      <Filter>Display Utilities</Filter>
-    </None>
-    <None Include="shaders\TransformVertexShader.vertexshader">
-      <Filter>Display Utilities</Filter>
-    </None>
     <None Include="shaders\PFNMRtexfrag.fragmentshader">
       <Filter>Display Utilities</Filter>
     </None>

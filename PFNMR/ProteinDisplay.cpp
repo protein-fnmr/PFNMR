@@ -30,10 +30,7 @@
 #include "ProteinDisplay.h"
 #include "PFDProcessor.h"
 #include "displayUtils/shader.h"
-#include "displayUtils/texture.h"
 #include "displayUtils/controls.h"
-#include "displayUtils/objloader.h"
-#include "displayUtils/vboindexer.h"
 
 using namespace glm;
 using namespace std;
@@ -76,7 +73,7 @@ int ProteinDisplay::initDisplay()
     }
 
     // Ensure we can capture the escape key being pressed below
-    glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_FALSE);
+    glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
     // Hide the mouse and enable unlimited movement
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 

@@ -103,9 +103,6 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   <ItemGroup>
     <ClCompile Include="CSVReader.cpp" />
     <ClCompile Include="displayUtils\controls.cpp" />
-    <ClCompile Include="displayUtils\objloader.cpp" />
-    <ClCompile Include="displayUtils\texture.cpp" />
-    <ClCompile Include="displayUtils\vboindexer.cpp" />
     <ClCompile Include="PFDProcessor.cpp" />
     <ClCompile Include="ProteinDisplay.cpp" />
     <ClCompile Include="GPUTypes.h" />
@@ -116,9 +113,6 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   <ItemGroup>
     <ClInclude Include="CSVReader.h" />
     <ClInclude Include="displayUtils\controls.h" />
-    <ClInclude Include="displayUtils\objloader.h" />
-    <ClInclude Include="displayUtils\texture.h" />
-    <ClInclude Include="displayUtils\vboindexer.h" />
     <ClInclude Include="PFDProcessor.h" />
     <ClInclude Include="ProteinDisplay.h" />
     <ClInclude Include="gif.h" />
@@ -133,8 +127,6 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <None Include="shaders\PFNMRwirevert.vertexshader" />
     <None Include="shaders\PFNMRtexfrag.fragmentshader" />
     <None Include="shaders\PFNMRtexvert.vertexshader" />
-    <None Include="shaders\TextureFragmentShader.fragmentshader" />
-    <None Include="shaders\TransformVertexShader.vertexshader" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
