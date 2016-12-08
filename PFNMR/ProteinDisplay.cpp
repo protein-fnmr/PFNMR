@@ -16,16 +16,20 @@
 // C++ code for doing protein displaying
 // Made from code taken from http://www.opengl-tutorial.org/, beer is in the mail.
 
+#define _USE_MATH_DEFINES
+
 #include <stdio.h>
 #include <iostream>
 #include <stdlib.h>
 #include <vector>
 #include <fstream>
+#include <math.h>
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <GL/GLU.h>
 
 #include "ProteinDisplay.h"
 #include "PFDProcessor.h"
@@ -36,6 +40,66 @@ using namespace glm;
 using namespace std;
 
 GLFWwindow* window;
+
+float dotProd(vec3 & a, vec3 & b)
+{
+    return (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2]);
+}
+
+vec3 crossProd(vec3 & a, vec3 & b)
+{
+    return vec3(((a[1] * b[2]) - (a[2] * b[1])), ((a[2] * b[0]) - (a[0] * b[2])), ((a[0] * b[1]) - (a[1] * b[0])));
+}
+
+vec3 distance(vec3 & a, vec3 & b)
+{
+    return vec3((b.x - a.x), (b.y - a.y), (b.z - a.z));
+}
+
+float magnitude(vec3 & a)
+{
+    return sqrtf((a.x * a.x) + (a.y * a.y) + (a.z * a.z));
+}
+
+
+void drawCylinder(vec3 & a, vec3 & b, const float radius, const int divisions)
+{
+    GLUquadricObj *quadric = gluNewQuadric();
+    gluQuadricNormals(quadric, GLU_SMOOTH);
+    float vx = a.x - b.x;
+    float vy = a.y - b.y;
+    float vz = a.z - b.z;
+
+    //handle the degenerate case of z1 == z2 with an approximation
+    if (vz == 0)
+        vz = .0001;
+
+    float v = sqrt(vx*vx + vy*vy + vz*vz);
+    float ax = 57.2957795*acos(vz / v);
+    if (vz < 0.0)
+        ax = -ax;
+    float rx = -vy*vz;
+    float ry = vx*vz;
+    glPushMatrix();
+
+    //draw the cylinder body
+    glTranslatef(a.x, a.y, a.z);
+    glRotatef(ax, rx, ry, 0.0);
+    gluQuadricOrientation(quadric, GLU_OUTSIDE);
+    gluCylinder(quadric, radius, radius, v, divisions, 1);
+
+    //draw the first cap
+    gluQuadricOrientation(quadric, GLU_INSIDE);
+    gluDisk(quadric, 0.0, radius, divisions, 1);
+    glTranslatef(0, 0, v);
+
+    //draw the second cap
+    gluQuadricOrientation(quadric, GLU_OUTSIDE);
+    gluDisk(quadric, 0.0, radius, divisions, 1);
+    glPopMatrix();
+    gluDeleteQuadric(quadric);
+}
+
 
 int ProteinDisplay::initDisplay()
 {
@@ -111,6 +175,8 @@ int ProteinDisplay::initDisplay()
     GLuint TextureID = glGetUniformLocation(texprogramID, "myTextureSampler");
 
     //Load everything needed for rendering
+    vector<vector<vec3>> helices;
+    vector<vector<vec3>> sheets;
     vector<unsigned short> wireindicies;
     vector<vec3> atomverts;
     vector<vec4> atomcols;
@@ -120,7 +186,7 @@ int ProteinDisplay::initDisplay()
     vector<GLuint> textureIDs;
     PFDReader reader;
     openPFDFileReader(&reader, "test.pfd");
-    bool trytexload = loadPFDTextureFile(&reader, atomverts, atomcols, wireindicies, texverts, textureIDs);
+    bool trytexload = loadPFDTextureFile(&reader, atomverts, atomcols, wireindicies, helices, sheets, texverts, textureIDs);
     closePFDFileReader(&reader);
 
     for (int i = 0; i < textureIDs.size(); i++)
@@ -184,7 +250,13 @@ int ProteinDisplay::initDisplay()
     do {
 
         // Clear the screen
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);        
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);      
+
+        //Draw seconadry structure
+        for (int i = 0; i < helices.size(); i++)
+        {
+            drawCylinder(helices[i][0], helices[i][1], 10.0f, 10);
+        }
 
         // Compute the MVP matrix from keyboard and mouse input
         computeMatricesFromInputs();

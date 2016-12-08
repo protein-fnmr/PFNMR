@@ -43,8 +43,13 @@ bool openPFDFileWriter(PFDWriter* writer, string outpath);
 bool openPFDFileReader(PFDReader* reader, string inpath);
 void closePFDFileWriter(PFDWriter* writer);
 void closePFDFileReader(PFDReader* reader);
+
 void writeStructurePFDInfo(PFDWriter* writer, vector<Atom> & atoms, vector<vector<string>> & colorcsv);
 void writeDielectricFrameData(PFDWriter* writer, const uint8_t* image, vector<float> & planeDims, uint32_t imgSideResolution);
-bool loadPFDFile(PFDReader* reader, std::vector<glm::vec3> & out_atomverts, std::vector<glm::vec3> & out_atomcols, std::vector<unsigned short> & out_bondindicies);
-bool loadPFDTextureFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, vector<glm::vec4> & out_atomcols, vector<unsigned short> & out_bondindicies, vector<glm::vec3> & out_texverts, vector<GLuint> & texIDs);
+void writeSecondaryStructureData(PFDWriter* writer, vector<vector<Atom>> & helices, vector<vector<Atom>> & sheets);
+
+bool loadPFDFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, vector<glm::vec3> & out_atomcols, vector<unsigned short> & out_bondindicies,
+    vector<vector<glm::vec3>> & out_helices, vector<vector<glm::vec3>> & out_sheets);
+bool loadPFDTextureFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, vector<glm::vec4> & out_atomcols, vector<unsigned short> & out_bondindicies, 
+    vector<vector<glm::vec3>> & out_helices, vector<vector<glm::vec3>> & out_sheets, vector<glm::vec3> & out_texverts, vector<GLuint> & texIDs);
 #endif

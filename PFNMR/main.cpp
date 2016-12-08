@@ -26,6 +26,7 @@
 #include <math.h>
 #include <iomanip>
 
+#include "KAKSI.h"
 #include "PDBProcessor.h"
 #include "CSVReader.h"
 #include "GPUTypes.h"
@@ -833,8 +834,10 @@ int pfdFullVisualizationFileGen(string pdbFilePath, int imgSize, int nSlices, fl
         auto atomcolors = csvreader.readCSVFile();
         auto fullatoms = pdbProcessor.getAtomsFromPDB();
         writeStructurePFDInfo(&pfdwriter, fullatoms, atomcolors);
-        vector<vector<string>>().swap(atomcolors); //Hopefully clears out some memory
-        vector<Atom>().swap(fullatoms);
+        vector<vector<Atom>> helicies;
+        vector<vector<Atom>> sheets;
+        determineSecondaryStructureCPU(fullatoms, helicies, sheets);
+        writeSecondaryStructureData(&pfdwriter, helicies, sheets);
 
         // find the bounds
         for (size_t i = 0; i < nAtoms; ++i)

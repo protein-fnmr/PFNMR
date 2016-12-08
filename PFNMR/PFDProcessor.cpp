@@ -102,11 +102,41 @@ void writeStructurePFDInfo(PFDWriter* writer, vector<Atom> & atoms, vector<vecto
     }
 }
 
+void writeSecondaryStructureData(PFDWriter* writer, vector<vector<Atom>> & helices, vector<vector<Atom>> & sheets)
+{
+    char buffer[25];
+    char flag = 'h';
+    memcpy(&buffer, &flag, sizeof(char));
+    for (int i = 0; i < helices.size(); i++)
+    {
+        memcpy(&buffer[sizeof(char)], &helices[i][0].x, sizeof(float));
+        memcpy(&buffer[sizeof(char) + sizeof(float)], &helices[i][0].y, sizeof(float));
+        memcpy(&buffer[sizeof(char) + (2 * sizeof(float))], &helices[i][0].z, sizeof(float));
+        memcpy(&buffer[sizeof(char) + (3 * sizeof(float))], &helices[i][1].x, sizeof(float));
+        memcpy(&buffer[sizeof(char) + (4 * sizeof(float))], &helices[i][1].y, sizeof(float));
+        memcpy(&buffer[sizeof(char) + (5 * sizeof(float))], &helices[i][1].z, sizeof(float));
+        writer->file.write(buffer, sizeof(char) + (6 * sizeof(float))); //write the buffer to the file
+    }
+    flag = 's';
+    memcpy(&buffer, &flag, sizeof(char));
+    for (int i = 0; i < sheets.size(); i++)
+    {
+        memcpy(&buffer[sizeof(char)], &sheets[i][0].x, sizeof(float));
+        memcpy(&buffer[sizeof(char) + sizeof(float)], &sheets[i][0].y, sizeof(float));
+        memcpy(&buffer[sizeof(char) + (2 * sizeof(float))], &sheets[i][0].z, sizeof(float));
+        memcpy(&buffer[sizeof(char) + (3 * sizeof(float))], &sheets[i][1].x, sizeof(float));
+        memcpy(&buffer[sizeof(char) + (4 * sizeof(float))], &sheets[i][1].y, sizeof(float));
+        memcpy(&buffer[sizeof(char) + (5 * sizeof(float))], &sheets[i][1].z, sizeof(float));
+        writer->file.write(buffer, sizeof(char) + (6 * sizeof(float))); //write the buffer to the file
+    }
+
+}
+
 void writeDielectricFrameData(PFDWriter* writer, const uint8_t* image, vector<float> & planeDims, uint32_t imgSideResolution)
 {
     auto sidesqdata = imgSideResolution * imgSideResolution;
     char buffer[29];
-    char flag = 'v'; //set the data type flag
+    char flag = 'd'; //set the data type flag
     memcpy(&buffer, &flag, sizeof(char));
     memcpy(&buffer[sizeof(char)], &imgSideResolution, sizeof(uint32_t));
     memcpy(&buffer[sizeof(char) + sizeof(uint32_t)], &planeDims[0], sizeof(float) * 6);
@@ -118,7 +148,8 @@ void writeDielectricFrameData(PFDWriter* writer, const uint8_t* image, vector<fl
     }
 }
 
-bool loadPFDFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, vector<glm::vec3> & out_atomcols, vector<unsigned short> & out_bondindicies)
+bool loadPFDFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, vector<glm::vec3> & out_atomcols, vector<unsigned short> & out_bondindicies, 
+    vector<vector<glm::vec3>> & out_helices, vector<vector<glm::vec3>> & out_sheets)
 {
     if (reader->file.is_open())
     {
@@ -155,6 +186,24 @@ bool loadPFDFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, vector<gl
                 out_bondindicies.push_back(b);
                 pos += sizeof(unsigned short) * 2;
                 break;
+            case 'h':
+            {
+                float atoms[6];
+                reader->file.read((char*)&atoms, sizeof(float) * 6);
+                glm::vec3 temp(atoms[0], atoms[1], atoms[2]);
+                glm::vec3 temp2(atoms[3], atoms[4], atoms[5]);
+                out_helices.push_back({ temp , temp2 });
+                break;
+            }
+            case 's':
+            {
+                float atoms[6];
+                reader->file.read((char*)&atoms, sizeof(float) * 6);
+                glm::vec3 temp(atoms[0], atoms[1], atoms[2]);
+                glm::vec3 temp2(atoms[3], atoms[4], atoms[5]);
+                out_sheets.push_back({ temp , temp2 });
+                break;
+            }
             default:
                 printf("ERROR: Encountered an unknown flag %c.  Ending reading procedure...", flag);
                 return false;
@@ -169,7 +218,8 @@ bool loadPFDFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, vector<gl
     }
 }
 
-bool loadPFDTextureFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, vector<glm::vec4> & out_atomcols, vector<unsigned short> & out_bondindicies, vector<glm::vec3> & out_texverts, vector<GLuint> & texIDs)
+bool loadPFDTextureFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, vector<glm::vec4> & out_atomcols, vector<unsigned short> & out_bondindicies,
+    vector<vector<glm::vec3>> & out_helices, vector<vector<glm::vec3>> & out_sheets, vector<glm::vec3> & out_texverts, vector<GLuint> & texIDs)
 {
     if (reader->file.is_open())
     {
@@ -207,7 +257,25 @@ bool loadPFDTextureFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, ve
                 out_bondindicies.push_back(b);
                 pos += sizeof(unsigned short) * 2;
                 break;
-            case 'v':
+            case 'h':
+            {
+                float atoms[6];
+                reader->file.read((char*)&atoms, sizeof(float) * 6);
+                glm::vec3 temp(atoms[0], atoms[1], atoms[2]);
+                glm::vec3 temp2(atoms[3], atoms[4], atoms[5]);
+                out_helices.push_back({ temp , temp2 });
+                break;
+            }
+            case 's':
+            {
+                float atoms[6];
+                reader->file.read((char*)&atoms, sizeof(float) * 6);
+                glm::vec3 temp(atoms[0], atoms[1], atoms[2]);
+                glm::vec3 temp2(atoms[3], atoms[4], atoms[5]);
+                out_sheets.push_back({ temp , temp2 });
+                break;
+            }
+            case 'd':
             {
                 uint32_t sideres;
                 reader->file.read((char*)&sideres, sizeof(uint32_t));

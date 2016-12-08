@@ -26,6 +26,9 @@
     <ClCompile Include="PFDProcessor.cpp">
       <Filter>File Handling</Filter>
     </ClCompile>
+    <ClCompile Include="KAKSI.cpp">
+      <Filter>Display Utilities</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CSVReader.h">
@@ -54,6 +57,9 @@
     </ClInclude>
     <ClInclude Include="PFDProcessor.h">
       <Filter>File Handling</Filter>
+    </ClInclude>
+    <ClInclude Include="KAKSI.h">
+      <Filter>Display Utilities</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
