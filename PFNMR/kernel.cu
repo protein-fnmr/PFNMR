@@ -232,29 +232,14 @@ __global__ void eFieldDensityKernel(float *out, float *xspans, const GPUChargeAt
     if ((i < resopsperiter) && (j < nAtoms) && (resopspos < (resolution * nAtoms)))
     {
         int fieldAtomIndex = resopspos / resolution;  //Get which atoms EField we are working on
-        int posWithinFAStrip = resopspos % resolution;  //Get what the relative position index is from the FA to the EFP
+        float posWithinFAStrip = resopspos % resolution;  //Get what the relative position index is from the FA to the EFP
 
-        //THIS IS THE HARD WAY OF DOING IT, AND CAN BE SUUUUPER OPTIMIZED/COMPRESSED
-        //Get the distance parameters from FA -> EFP
-        float linediffx = efp.x - inAtoms[fieldAtomIndex].x;
-        float linediffy = efp.y - inAtoms[fieldAtomIndex].y;
-        float linediffz = efp.z - inAtoms[fieldAtomIndex].z;
+        float percent = (posWithinFAStrip + 1.0f) / (resolution + 1.0f); //Relative position to be calculated (This will be provided later for Gauss Quadrature methodology)
 
-        //Get the distance stepping for each point
-        float xstep = linediffx / (resolution + 1.0f);
-        float ystep = linediffy / (resolution + 1.0f);
-        float zstep = linediffz / (resolution + 1.0f);
-        float linedistance = sqrtf((linediffx * linediffx) + (linediffy * linediffy) + (linediffz * linediffz));
-
-        //Get the current position of the pseudo-point alon gthe line in space
-        float currx = inAtoms[fieldAtomIndex].x + (xstep * posWithinFAStrip);
-        float curry = inAtoms[fieldAtomIndex].y + (ystep * posWithinFAStrip);
-        float currz = inAtoms[fieldAtomIndex].z + (zstep * posWithinFAStrip);
-
-        //Calculate the distance parameters from density atom to pseudo point
-        float diffx = currx - inAtoms[j].x;
-        float diffy = curry - inAtoms[j].y;
-        float diffz = currz - inAtoms[j].z;
+        //Calculate relevant distance calculation.  
+        float diffx = (percent * (efp.x - inAtoms[fieldAtomIndex].x)) + inAtoms[fieldAtomIndex].x - inAtoms[j].x;
+        float diffy = (percent * (efp.y - inAtoms[fieldAtomIndex].y)) + inAtoms[fieldAtomIndex].y - inAtoms[j].y;
+        float diffz = (percent * (efp.z - inAtoms[fieldAtomIndex].z)) + inAtoms[fieldAtomIndex].z - inAtoms[j].z;
         float distance = (diffx * diffx) + (diffy * diffy) + (diffz * diffz);
 
         //Calculate the density and and store it.   
@@ -262,6 +247,10 @@ __global__ void eFieldDensityKernel(float *out, float *xspans, const GPUChargeAt
 
         if (posWithinFAStrip == 0) //If we are at the closest point to the atom, report the distance for the future integration calculation
         {
+            float linediffx = efp.x - inAtoms[fieldAtomIndex].x;
+            float linediffy = efp.y - inAtoms[fieldAtomIndex].y;
+            float linediffz = efp.z - inAtoms[fieldAtomIndex].z;
+            float linedistance = sqrtf((linediffx * linediffx) + (linediffy * linediffy) + (linediffz * linediffz));
             xspans[fieldAtomIndex] = linedistance / (resolution + 1.0f);
         }
     }

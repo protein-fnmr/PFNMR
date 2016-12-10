@@ -769,12 +769,24 @@ int newEFieldMethod(string pdbPath, const int lineresolution, const float inDiel
         }
 
         //Print back the results
-        cout << "Calculation results:" << endl;
-        cout << "ChainId:\tResId:\tField-X:\tField-Y:\tField-Z:\tTotal:\tg09 Input:" << endl;
-        for (int i = 0; i < nFluorines; i++)
         {
-            cout << fluorines[i].chainid << "\t" << fluorines[i].resid << "\t" << fluorines[i].fieldx << "\t" << fluorines[i].fieldy << "\t" << fluorines[i].fieldz << "\t" << fluorines[i].getTotalField() << "\t" << (fluorines[i].getTotalField() * 10000.0f) << "\t" << endl;
+            ofstream logfile("testout.log", ofstream::out);
+            cout << "Calculation results:" << endl;
+            cout << "ChainId:\tResId:\tField-X:\tField-Y:\tField-Z:\tTotal:\tg09 Input:" << endl;
+            logfile << "Calculation results:" << endl;
+            logfile << "ChainId:\tResId:\tField-X:\tField-Y:\tField-Z:\tTotal:\tg09 Input:" << endl;
+
+            for (int i = 0; i < nFluorines; i++)
+            {
+                cout << fluorines[i].chainid << "\t" << fluorines[i].resid << "\t" << fluorines[i].fieldx << "\t" << fluorines[i].fieldy << "\t" << fluorines[i].fieldz << "\t" << fluorines[i].getTotalField() << "\t" << (fluorines[i].getTotalField() * 10000.0f) << "\t" << endl;
+                logfile << fluorines[i].chainid << "\t" << fluorines[i].resid << "\t" << fluorines[i].fieldx << "\t" << fluorines[i].fieldy << "\t" << fluorines[i].fieldz << "\t" << fluorines[i].getTotalField() << "\t" << (fluorines[i].getTotalField() * 10000.0f) << "\t" << endl;
+            }
+            // output the time took
+            cout << "Took " << ((clock() - startTime) / ((double)CLOCKS_PER_SEC)) << endl;
+            logfile << "Took " << ((clock() - startTime) / ((double)CLOCKS_PER_SEC)) << endl;
+            logfile.close();
         }
+
 
     kernelFailed:;
 
@@ -794,9 +806,6 @@ int newEFieldMethod(string pdbPath, const int lineresolution, const float inDiel
         cerr << "cudaDeviceReset failed!" << endl;
         return 3;
     }
-
-    // output the time took
-    cout << "Took " << ((clock() - startTime) / ((double)CLOCKS_PER_SEC)) << endl;
     cout << "Press enter to exit." << endl;
     cin.get();
     return 0;
