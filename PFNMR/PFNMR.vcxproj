@@ -48,6 +48,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;WIN64;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BrowseInformation>true</BrowseInformation>
+      <OpenMPSupport>true</OpenMPSupport>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -76,6 +77,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;WIN64;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <OpenMPSupport>true</OpenMPSupport>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -100,12 +102,14 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CSVReader.cpp" />
+    <ClCompile Include="GaussQuadrature.cpp" />
     <ClCompile Include="GPUTypes.h" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="PDBProcessor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CSVReader.h" />
+    <ClInclude Include="GaussQuadrature.h" />
     <ClInclude Include="gif.h" />
     <ClInclude Include="Heatmap.h" />
     <ClInclude Include="helper_string.h" />

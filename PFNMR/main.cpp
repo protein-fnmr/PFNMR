@@ -32,6 +32,8 @@
 #include "gif.h"
 #include "helper_string.h"
 
+#include "GaussQuadrature.h"
+
 using namespace std;
 
 #define EFIELDTESTING
@@ -49,16 +51,22 @@ cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDiel
 cudaError_t eFieldDensityCuda(float *out, float *xspans, const GPUChargeAtom *inAtoms, const GPUEFP efp,
     const float variance, const size_t offset, const size_t resopsperiter, const size_t nAtoms,
     const size_t resolution, cudaDeviceProp &deviceProp);
+
 cudaError_t eFieldDielectricCuda(float *out, const float *inDensity, const float innerdielectric,
     const float outerdielectric, const size_t offset, const size_t resopsperiter, const size_t nAtoms,
     const size_t resolution, cudaDeviceProp &deviceProp);
-cudaError_t trapIntegrationCuda(float *out, const float *inXSpans, const float *inY, const size_t nStrips, const size_t nPoints, cudaDeviceProp &deviceProp);
+
+cudaError_t trapIntegrationCuda(float *out, const float *inXSpans, const float *inY, const size_t nStrips,
+    const size_t nPoints, cudaDeviceProp &deviceProp);
+
 cudaError_t sqrtf2DCuda(float *out, const size_t nX, const size_t nY, cudaDeviceProp &deviceProp);
+
 cudaError_t electricFieldComponentCuda(GPUEFP *out, const float *inEffLengths, const GPUChargeAtom *inAtoms,
     const float coulconst, const size_t nEFPs, const size_t nAtoms, cudaDeviceProp &deviceProp);
 
 int electricFieldCalculation(string pdbPath, const float lineresolution, const float inDielectric,
     const float outDielectric, const float variance);
+
 int newEFieldMethod(string pdbPath, const int lineresolution, const float inDielectric, const float outDielectric, const float variance);
 #endif
 
