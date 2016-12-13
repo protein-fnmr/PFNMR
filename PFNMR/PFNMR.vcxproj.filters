@@ -14,21 +14,10 @@
     <ClCompile Include="GPUTypes.h">
       <Filter>Misc Headers</Filter>
     </ClCompile>
-    <ClCompile Include="displayUtils\shader.cpp">
-      <Filter>Display Utilities</Filter>
+    <ClCompile Include="GaussQuadrature.cpp">
+      <Filter>Integration</Filter>
     </ClCompile>
-    <ClCompile Include="displayUtils\controls.cpp">
-      <Filter>Display Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="ProteinDisplay.cpp">
-      <Filter>Display Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="PFDProcessor.cpp">
-      <Filter>File Handling</Filter>
-    </ClCompile>
-    <ClCompile Include="KAKSI.cpp">
-      <Filter>Display Utilities</Filter>
-    </ClCompile>
+    <ClCompile Include="CalculationMethods.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CSVReader.h">
@@ -46,21 +35,11 @@
     <ClInclude Include="helper_string.h">
       <Filter>Misc Headers</Filter>
     </ClInclude>
-    <ClInclude Include="displayUtils\shader.h">
-      <Filter>Display Utilities</Filter>
+    <ClInclude Include="GaussQuadrature.h">
+      <Filter>Integration</Filter>
     </ClInclude>
-    <ClInclude Include="displayUtils\controls.h">
-      <Filter>Display Utilities</Filter>
-    </ClInclude>
-    <ClInclude Include="ProteinDisplay.h">
-      <Filter>Display Utilities</Filter>
-    </ClInclude>
-    <ClInclude Include="PFDProcessor.h">
-      <Filter>File Handling</Filter>
-    </ClInclude>
-    <ClInclude Include="KAKSI.h">
-      <Filter>Display Utilities</Filter>
-    </ClInclude>
+    <ClInclude Include="kernel.cuh" />
+    <ClInclude Include="CalculationMethods.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="File Handling">
@@ -69,23 +48,8 @@
     <Filter Include="Misc Headers">
       <UniqueIdentifier>{94b2c7c0-4491-4915-8a19-4c62a7dab096}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Display Utilities">
-      <UniqueIdentifier>{1883e012-a05e-433e-9b8b-dc8e59e42e15}</UniqueIdentifier>
+    <Filter Include="Integration">
+      <UniqueIdentifier>{3d14cfc0-83af-4d81-b70a-07db8824a495}</UniqueIdentifier>
     </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="packages.config" />
-    <None Include="shaders\PFNMRtexfrag.fragmentshader">
-      <Filter>Display Utilities</Filter>
-    </None>
-    <None Include="shaders\PFNMRtexvert.vertexshader">
-      <Filter>Display Utilities</Filter>
-    </None>
-    <None Include="shaders\PFNMRwirefrag.fragmentshader">
-      <Filter>Display Utilities</Filter>
-    </None>
-    <None Include="shaders\PFNMRwirevert.vertexshader">
-      <Filter>Display Utilities</Filter>
-    </None>
   </ItemGroup>
 </Project>
