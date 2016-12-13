@@ -64,40 +64,6 @@ float magnitude(vec3 & a)
 
 void drawCylinder(vec3 & a, vec3 & b, const float radius, const int divisions)
 {
-    GLUquadricObj *quadric = gluNewQuadric();
-    gluQuadricNormals(quadric, GLU_SMOOTH);
-    float vx = a.x - b.x;
-    float vy = a.y - b.y;
-    float vz = a.z - b.z;
-
-    //handle the degenerate case of z1 == z2 with an approximation
-    if (vz == 0)
-        vz = .0001;
-
-    float v = sqrt(vx*vx + vy*vy + vz*vz);
-    float ax = 57.2957795*acos(vz / v);
-    if (vz < 0.0)
-        ax = -ax;
-    float rx = -vy*vz;
-    float ry = vx*vz;
-    glPushMatrix();
-
-    //draw the cylinder body
-    glTranslatef(a.x, a.y, a.z);
-    glRotatef(ax, rx, ry, 0.0);
-    gluQuadricOrientation(quadric, GLU_OUTSIDE);
-    gluCylinder(quadric, radius, radius, v, divisions, 1);
-
-    //draw the first cap
-    gluQuadricOrientation(quadric, GLU_INSIDE);
-    gluDisk(quadric, 0.0, radius, divisions, 1);
-    glTranslatef(0, 0, v);
-
-    //draw the second cap
-    gluQuadricOrientation(quadric, GLU_OUTSIDE);
-    gluDisk(quadric, 0.0, radius, divisions, 1);
-    glPopMatrix();
-    gluDeleteQuadric(quadric);
 }
 
 
