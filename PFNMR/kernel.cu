@@ -744,3 +744,257 @@ Error:
 
     return cudaStatus;
 }
+
+//===========================================KERNEL STUFF FOR GAUSS QUAD INTEGRATION===========================================
+__global__ void eFieldDensityGQKernel(float *out, float *xspans, const GPUChargeAtom *inAtoms, const float *inAbsci, const GPUEFP efp,
+    const float variance, const size_t offset, const size_t resopsperiter, const size_t nAtoms, const size_t resolution)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x; //Current position in the multi-atom resolution strip currently being processed
+    int j = blockIdx.y * blockDim.y + threadIdx.y; //Current atom for density calculation
+    int resopspos = (i + offset); //Where we are along the global multi-atom resolution strip
+    if ((i < resopsperiter) && (j < nAtoms) && (resopspos < (resolution * nAtoms)))
+    {
+        int fieldAtomIndex = resopspos / resolution;  //Get which atoms EField we are working on
+        int posWithinFAStrip = resopspos % resolution;  //Get what the relative position index is from the FA to the EFP
+
+                                                        //Calculate relevant distance calculation.  
+        float diffx = ((((efp.x - inAtoms[fieldAtomIndex].x) / 2.0f) * inAbsci[posWithinFAStrip]) + ((efp.x + inAtoms[fieldAtomIndex].x) / 2.0f)) - inAtoms[j].x;
+        float diffy = ((((efp.y - inAtoms[fieldAtomIndex].y) / 2.0f) * inAbsci[posWithinFAStrip]) + ((efp.y + inAtoms[fieldAtomIndex].y) / 2.0f)) - inAtoms[j].y;
+        float diffz = ((((efp.z - inAtoms[fieldAtomIndex].z) / 2.0f) * inAbsci[posWithinFAStrip]) + ((efp.z + inAtoms[fieldAtomIndex].z) / 2.0f)) - inAtoms[j].z;
+        float distance = (diffx * diffx) + (diffy * diffy) + (diffz * diffz);
+
+        //Calculate the density and and store it.   
+        out[(resopsperiter * j) + i] = 1.0f - expf((-1.0f * distance) / ((variance * variance) * (inAtoms[j].vdw * inAtoms[j].vdw)));
+
+        if (posWithinFAStrip == 0) //If we are at the closest point to the atom, report the distance for the future integration calculation
+        {
+            float linediffx = efp.x - inAtoms[fieldAtomIndex].x;
+            float linediffy = efp.y - inAtoms[fieldAtomIndex].y;
+            float linediffz = efp.z - inAtoms[fieldAtomIndex].z;
+            float linedistance = sqrtf((linediffx * linediffx) + (linediffy * linediffy) + (linediffz * linediffz));
+            xspans[fieldAtomIndex] = linedistance / 2.0f;
+        }
+    }
+}
+
+__global__ void gaussQuadIntegrationKernel(float *out, const float *inXSpans, const float *inY, const float *inWeights, const size_t nStrips, const size_t nPoints)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i < nStrips)
+    {
+        float value = 0.0f;
+        for (int j = 0; j < nPoints; j++)
+        {
+            value += inWeights[j] * inY[(j * nStrips) + i];
+        }
+        out[i] = inXSpans[i] * value;
+    }
+}
+
+cudaError_t eFieldDensityGQCuda(float *out, float *xspans, const GPUChargeAtom *inAtoms, const float *inAbsci, const GPUEFP efp,
+    const float variance, const size_t offset, const size_t resopsperiter, const size_t nAtoms,
+    const size_t resolution, cudaDeviceProp &deviceProp)
+{
+    // define device arrays
+    GPUChargeAtom *dev_atom = 0;
+    GPUEFP *dev_EFP = 0;
+    float *dev_out = 0;
+    float *dev_xspans = 0;
+    float *dev_absci = 0;
+    cudaError_t cudaStatus;
+
+    // Allocate GPU buffers for vectors.
+    cudaStatus = cudaMalloc((void**)&dev_out, resopsperiter * nAtoms * sizeof(float));
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMalloc failed!" << endl;
+        goto Error;
+    }
+
+    cudaStatus = cudaMalloc((void**)&dev_xspans, nAtoms * sizeof(float));
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMalloc failed!" << endl;
+        goto Error;
+    }
+
+    cudaStatus = cudaMalloc((void**)&dev_atom, nAtoms * sizeof(GPUChargeAtom));
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMalloc failed!" << endl;
+        goto Error;
+    }
+
+    cudaStatus = cudaMalloc((void**)&dev_absci, resolution * sizeof(float));
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMalloc failed!" << endl;
+        goto Error;
+    }
+
+
+    // Copy input vectors from host memory to GPU buffers.
+    cudaStatus = cudaMemcpy(dev_atom, inAtoms, nAtoms * sizeof(GPUChargeAtom), cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMemcpy failed!" << endl;
+        goto Error;
+    }
+
+    cudaStatus = cudaMemcpy(dev_xspans, xspans, nAtoms * sizeof(float), cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMemcpy failed!" << endl;
+        goto Error;
+    }
+
+
+    cudaStatus = cudaMemcpy(dev_absci, inAbsci, resolution * sizeof(float), cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMemcpy failed!" << endl;
+        goto Error;
+    }
+
+    // find the most effective dimensions for our calculations
+    int blockDim = sqrt(deviceProp.maxThreadsPerBlock);
+    auto blockSize = dim3(blockDim, blockDim);
+    auto gridSize = dim3(round((blockDim - 1 + resopsperiter) / blockDim), round((blockDim - 1 + nAtoms) / blockDim));
+
+    // Launch a kernel on the GPU.
+    eFieldDensityGQKernel << <gridSize, blockSize >> > (dev_out, dev_xspans, dev_atom, dev_absci, efp, variance, offset, resopsperiter, nAtoms, resolution);
+    // Check for any errors launching the kernel
+    cudaStatus = cudaGetLastError();
+    if (cudaStatus != cudaSuccess) {
+        cerr << "density kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
+        goto Error;
+    }
+
+    // cudaDeviceSynchronize waits for the kernel to finish, and returns
+    // any errors encountered during the launch.
+    cudaStatus = cudaDeviceSynchronize();
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching density kernel!" << endl;
+        cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
+        goto Error;
+    }
+
+    // Copy output vector from GPU buffer to host memory.
+    cudaStatus = cudaMemcpy(out, dev_out, nAtoms * resopsperiter * sizeof(float), cudaMemcpyDeviceToHost);
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMemcpy failed!" << endl;
+        goto Error;
+    }
+
+    cudaStatus = cudaMemcpy(xspans, dev_xspans, nAtoms * sizeof(float), cudaMemcpyDeviceToHost);
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMemcpy failed!" << endl;
+        goto Error;
+    }
+
+    // clear all our device arrays
+Error:
+    cudaFree(dev_absci);
+    cudaFree(dev_xspans);
+    cudaFree(dev_atom);
+    cudaFree(dev_EFP);
+    cudaFree(dev_out);
+
+    return cudaStatus;
+}
+
+cudaError_t gaussQuadIntegrationCuda(float *out, const float *inXSpans, const float *inY, const float *inWeights, const size_t nStrips,
+    const size_t nPoints, cudaDeviceProp &deviceProp)
+{
+    // define device arrays
+    float *dev_inXSpans = 0;
+    float *dev_inWeights = 0;
+    float *dev_inY = 0;
+    float *dev_out = 0;
+    cudaError_t cudaStatus;
+
+    // Allocate GPU buffers for vectors.
+    cudaStatus = cudaMalloc((void**)&dev_out, nStrips * sizeof(float));
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMalloc failed!" << endl;
+        goto Error;
+    }
+
+    cudaStatus = cudaMalloc((void**)&dev_inWeights, nPoints * sizeof(float));
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMalloc failed!" << endl;
+        goto Error;
+    }
+
+    cudaStatus = cudaMalloc((void**)&dev_inXSpans, nStrips * sizeof(float));
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMalloc failed!" << endl;
+        goto Error;
+    }
+
+    cudaStatus = cudaMalloc((void**)&dev_inY, nStrips * nPoints * sizeof(float));
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMalloc failed!" << endl;
+        goto Error;
+    }
+
+    // Copy input vectors from host memory to GPU buffers.
+    cudaStatus = cudaMemcpy(dev_inXSpans, inXSpans, nStrips * sizeof(float), cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMemcpy failed!" << endl;
+        goto Error;
+    }
+
+    cudaStatus = cudaMemcpy(dev_inWeights, inWeights, nPoints * sizeof(float), cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMemcpy failed!" << endl;
+        goto Error;
+    }
+
+    cudaStatus = cudaMemcpy(dev_inY, inY, nStrips * nPoints * sizeof(float), cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMemcpy failed!" << endl;
+        goto Error;
+    }
+
+    // use div because it's more accurrate than the rounding BS
+    auto gridDiv = div(nStrips, deviceProp.maxThreadsPerBlock);
+    auto gridY = gridDiv.quot;
+
+    // ass backwards way of rounding up (maybe use the same trick as above? It might be "faster")
+    if (gridDiv.rem != 0)
+        gridY++;
+
+    // find the block and grid size
+    auto blockSize = deviceProp.maxThreadsPerBlock;
+    int gridSize = min(16 * deviceProp.multiProcessorCount, gridY);
+
+    // Launch a kernel on the GPU.
+    gaussQuadIntegrationKernel << <gridSize, blockSize >> > (dev_out, dev_inXSpans, dev_inY, dev_inWeights, nStrips, nPoints);
+
+    // Check for any errors launching the kernel
+    cudaStatus = cudaGetLastError();
+    if (cudaStatus != cudaSuccess) {
+        cerr << "trapezoid integration kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
+        goto Error;
+    }
+
+    // cudaDeviceSynchronize waits for the kernel to finish, and returns
+    // any errors encountered during the launch.
+    cudaStatus = cudaDeviceSynchronize();
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching trapezoid integration kernel!" << endl;
+        cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
+        goto Error;
+    }
+
+    // Copy output vector from GPU buffer to host memory.
+    cudaStatus = cudaMemcpy(out, dev_out, nStrips * sizeof(float), cudaMemcpyDeviceToHost);
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMemcpy failed!" << endl;
+        goto Error;
+    }
+
+    // delete all our device arrays
+Error:
+    cudaFree(dev_inWeights);
+    cudaFree(dev_inXSpans);
+    cudaFree(dev_inY);
+    cudaFree(dev_out);
+
+    return cudaStatus;
+}

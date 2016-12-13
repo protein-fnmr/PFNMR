@@ -64,6 +64,15 @@ cudaError_t sqrtf2DCuda(float *out, const size_t nX, const size_t nY, cudaDevice
 cudaError_t electricFieldComponentCuda(GPUEFP *out, const float *inEffLengths, const GPUChargeAtom *inAtoms,
     const float coulconst, const size_t nEFPs, const size_t nAtoms, cudaDeviceProp &deviceProp);
 
+cudaError_t eFieldDensityGQCuda(float *out, float *xspans, const GPUChargeAtom *inAtoms, const float *inAbsci, const GPUEFP efp,
+    const float variance, const size_t offset, const size_t resopsperiter, const size_t nAtoms,
+    const size_t resolution, cudaDeviceProp &deviceProp);
+
+cudaError_t gaussQuadIntegrationCuda(float *out, const float *inXSpans, const float *inY, const float *inWeights, const size_t nStrips,
+    const size_t nPoints, cudaDeviceProp &deviceProp);
+
+void getGaussQuadSetup(int points, vector<float> & outWeights, vector<float> & outAbscissa);
+
 int electricFieldCalculation(string pdbPath, const float lineresolution, const float inDielectric,
     const float outDielectric, const float variance);
 
@@ -204,7 +213,7 @@ int main(int argc, char **argv)
     //JME: PLEASE NOTE-The code implemented so far has ONLY been tested on an IFABP PDB file with the PHE residues replace for p-fluoro-phenylalanine.  It is potentially very breakable code for other PDBs.
     if (checkCmdLineFlag(argc, (const char**)argv, "test"))
     {
-        return newEFieldMethod(pdbFilePath, 1000.0f, inDielectric, outDielectric, relVariance);
+        return newEFieldMethod(pdbFilePath, 10, inDielectric, outDielectric, relVariance);
     }
 #endif
 
@@ -625,7 +634,78 @@ int electricFieldCalculation(string pdbPath, const float lineresolution, const f
     return 0;
 }
 
-int newEFieldMethod(string pdbPath, const int lineresolution, const float inDielectric, const float outDielectric, const float variance)
+void getGaussQuadSetup(int points, vector<float> & outWeights, vector<float> & outAbscissa)
+{
+    switch (points)
+    {
+    case 20:
+        outWeights.push_back(0.1527533871307258f);
+        outWeights.push_back(0.1527533871307258f);
+        outWeights.push_back(0.1491729864726037f);
+        outWeights.push_back(0.1491729864726037f);
+        outWeights.push_back(0.1420961093183820f);
+        outWeights.push_back(0.1420961093183820f);
+        outWeights.push_back(0.1316886384491766f);
+        outWeights.push_back(0.1316886384491766f);
+        outWeights.push_back(0.1181945319615184f);
+        outWeights.push_back(0.1181945319615184f);
+        outWeights.push_back(0.1019301198172404f);
+        outWeights.push_back(0.1019301198172404f);
+        outWeights.push_back(0.0832767415767048f);
+        outWeights.push_back(0.0832767415767048f);
+        outWeights.push_back(0.0626720483341091f);
+        outWeights.push_back(0.0626720483341091f);
+        outWeights.push_back(0.0406014298003869f);
+        outWeights.push_back(0.0406014298003869f);
+        outWeights.push_back(0.0176140071391521f);
+        outWeights.push_back(0.0176140071391521f);
+        outAbscissa.push_back(-0.0765265211334973f);
+        outAbscissa.push_back(0.0765265211334973f);
+        outAbscissa.push_back(-0.2277858511416451f);
+        outAbscissa.push_back(0.2277858511416451f);
+        outAbscissa.push_back(-0.3737060887154195f);
+        outAbscissa.push_back(0.3737060887154195f);
+        outAbscissa.push_back(-0.5108670019508271f);
+        outAbscissa.push_back(0.5108670019508271f);
+        outAbscissa.push_back(-0.6360536807265150f);
+        outAbscissa.push_back(0.6360536807265150f);
+        outAbscissa.push_back(-0.7463319064601508f);
+        outAbscissa.push_back(0.7463319064601508f);
+        outAbscissa.push_back(-0.8391169718222188f);
+        outAbscissa.push_back(0.8391169718222188f);
+        outAbscissa.push_back(-0.9122344282513259f);
+        outAbscissa.push_back(0.9122344282513259f);
+        outAbscissa.push_back(-0.9639719272779138f);
+        outAbscissa.push_back(0.9639719272779138f);
+        outAbscissa.push_back(-0.9931285991850949f);
+        outAbscissa.push_back(0.9931285991850949f);
+        break;
+    case 10:
+    default:
+        outWeights.push_back(0.2955242247147529f);
+        outWeights.push_back(0.2955242247147529f);
+        outWeights.push_back(0.2692667193099963f);
+        outWeights.push_back(0.2692667193099963f);
+        outWeights.push_back(0.2190863625159820f);
+        outWeights.push_back(0.2190863625159820f);
+        outWeights.push_back(0.1494513491505806f);
+        outWeights.push_back(0.1494513491505806f);
+        outWeights.push_back(0.0666713443086881f);
+        outWeights.push_back(0.0666713443086881f);
+        outAbscissa.push_back(-0.1488743389816312f);
+        outAbscissa.push_back(0.1488743389816312f);
+        outAbscissa.push_back(-0.4333953941292472f);
+        outAbscissa.push_back(0.4333953941292472f);
+        outAbscissa.push_back(-0.6794095682990244f);
+        outAbscissa.push_back(0.6794095682990244f);
+        outAbscissa.push_back(-0.8650633666889845f);
+        outAbscissa.push_back(0.8650633666889845f);
+        outAbscissa.push_back(-0.9739065285171717f);
+        outAbscissa.push_back(0.9739065285171717f);
+    }
+}
+
+int newEFieldMethod(string pdbPath, const int res, const float inDielectric, const float outDielectric, const float variance)
 {
     clock_t startTime = clock();
     //Read the charge table and get the appropriate charged atoms
@@ -636,6 +716,15 @@ int newEFieldMethod(string pdbPath, const int lineresolution, const float inDiel
     auto nAtoms = baseatoms.size();
     auto gpuatoms = pdb.getGPUChargeAtomsFromAtoms(baseatoms, chargetable);
     auto gpuatomsarray = &gpuatoms[0];
+
+    vector<float> weights;
+    vector<float> abscissa;
+    getGaussQuadSetup(res, weights, abscissa);
+    int actres = abscissa.size();
+    cout << "Using " << actres << " points for integration!" << endl;
+    auto gpuabscissa = &abscissa[0];
+    auto gpuweights = &weights[0];
+
 
     if (nAtoms != 0)
     {
@@ -690,8 +779,8 @@ int newEFieldMethod(string pdbPath, const int lineresolution, const float inDiel
         }
 
         // Calculate available memory
-        auto memdielectricmatrix = (lineresolution * nAtoms * sizeof(float));
-        size_t freemem = (cudaFreeMem * 0.45f) - (nAtoms * sizeof(GPUChargeAtom)) - (nFluorines * sizeof(GPUEFP)) - memdielectricmatrix - (2 * nAtoms * sizeof(float));
+        auto memdielectricmatrix = (actres * nAtoms * sizeof(float));
+        size_t freemem = (cudaFreeMem * 0.10f) - (nAtoms * sizeof(GPUChargeAtom)) - (nFluorines * sizeof(GPUEFP)) - memdielectricmatrix - (2 * nAtoms * sizeof(float));
         if (freemem < 0)
         {
             cout << "Error: Not enough memory for this calculation!" << endl;
@@ -699,7 +788,7 @@ int newEFieldMethod(string pdbPath, const int lineresolution, const float inDiel
         }
         int slicesperiter = floor(freemem / memdielectricmatrix);
         int iterReq = round(nAtoms / slicesperiter + 0.5f);
-        int resopsperiter = slicesperiter * lineresolution;
+        int resopsperiter = slicesperiter * actres;
 
         //Start doing the actual analysis using the Effective Length method for the non-uniform dielectric
         auto integralMatrix = new float[nAtoms * nFluorines];
@@ -708,14 +797,14 @@ int newEFieldMethod(string pdbPath, const int lineresolution, const float inDiel
         for (int i = 0; i < fluorines.size(); i++)  //Cycle through each fluorine
         {
             cout << "Processing fluorine " << (i + 1) << "/" << fluorines.size() << endl;
-            auto dielectricMatrix = new float[nAtoms * lineresolution]; //The end dielectric matrix that will be used to calculate the field components
+            auto dielectricMatrix = new float[nAtoms * actres]; //The end dielectric matrix that will be used to calculate the field components
             auto xspans = new float[nAtoms];
             for (int j = 0; j < iterReq; j++) //Keep going until we process all the iteration chunks
             {
                 auto densityMatrix = new float[nAtoms * resopsperiter]; //Temporary density matrix
                 cout << "\t Iteration: " << (j + 1) << "/" << iterReq << endl;
                 //Run the density kernel to populate the density matrix
-                eFieldDensityCuda(densityMatrix, xspans, gpuatomsarray, fluorines[i], variance, j * resopsperiter, resopsperiter, nAtoms, lineresolution, deviceProp);
+                eFieldDensityGQCuda(densityMatrix, xspans, gpuatomsarray, gpuabscissa, fluorines[i], variance, j * resopsperiter, resopsperiter, nAtoms, actres, deviceProp);
                 if (cudaResult != cudaSuccess)
                 {
                     cout << "Failed to run density kernel." << endl;
@@ -723,7 +812,7 @@ int newEFieldMethod(string pdbPath, const int lineresolution, const float inDiel
                 }
 
                 //Run the dielectric kernel on the density matrix, and store the results in the dielectric matrix
-                eFieldDielectricCuda(dielectricMatrix, densityMatrix, inDielectric, outDielectric, j * resopsperiter, resopsperiter, nAtoms, lineresolution, deviceProp);
+                eFieldDielectricCuda(dielectricMatrix, densityMatrix, inDielectric, outDielectric, j * resopsperiter, resopsperiter, nAtoms, actres, deviceProp);
                 if (cudaResult != cudaSuccess)
                 {
                     cout << "Failed to run dielectric kernel." << endl;
@@ -737,7 +826,7 @@ int newEFieldMethod(string pdbPath, const int lineresolution, const float inDiel
             }
 
             //Sqrt all the dielectrics (Needed for effective length method)
-            sqrtf2DCuda(dielectricMatrix, nAtoms, lineresolution, deviceProp);
+            sqrtf2DCuda(dielectricMatrix, nAtoms, actres, deviceProp);
             if (cudaResult != cudaSuccess)
             {
                 cout << "Failed to run sqrtf 2D kernel." << endl;
@@ -745,7 +834,8 @@ int newEFieldMethod(string pdbPath, const int lineresolution, const float inDiel
             }
 
             //Do the integration to get the effective length
-            trapIntegrationCuda(&integralMatrix[i * nAtoms], xspans, dielectricMatrix, nAtoms, lineresolution, deviceProp);
+            //trapIntegrationCuda(&integralMatrix[i * nAtoms], xspans, dielectricMatrix, nAtoms, actres, deviceProp);
+            gaussQuadIntegrationCuda(&integralMatrix[i*nAtoms], xspans, dielectricMatrix, gpuweights, nAtoms, actres, deviceProp);
             if (cudaResult != cudaSuccess)
             {
                 cout << "Failed to run trapezoid integration kernel." << endl;
