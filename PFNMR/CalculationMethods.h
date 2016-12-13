@@ -21,5 +21,6 @@
 void getGaussQuadSetup(int points, vector<float> & outWeights, vector<float> & outAbscissa);
 int oldElectricFieldCalculation(string pdbPath, const float lineresolution, const float inDielectric, const float outDielectric, const float variance);
 int electricFieldCalculation(string pdbPath, const int res, const float inDielectric, const float outDielectric, const float variance);
+int electricPotentialCalculation(string pdbPath, const int integralres, const int nSlices, const int gridres, const float inDielectric, const float outDielectric, const float variance);
 
 #endif

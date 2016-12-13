@@ -464,3 +464,219 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
     cin.get();
     return 0;
 }
+
+int electricPotentialCalculation(string pdbPath, const int integralres, const int nSlices, const int gridres, const float inDielectric, const float outDielectric, const float variance)
+{
+    clock_t startTime = clock();
+    //Read the charge table and get the appropriate charged atoms
+    CSVReader csvreader("ChargeTable.csv");
+    auto chargetable = csvreader.readCSVFile();
+    PDBProcessor pdb(pdbPath);
+    auto baseatoms = pdb.getAtomsFromPDB();
+    auto nAtoms = baseatoms.size();
+    auto gpuatoms = pdb.getGPUChargeAtomsFromAtoms(baseatoms, chargetable);
+    auto gpuatomsarray = &gpuatoms[0];
+
+    auto gridlen = gridres * gridres;
+
+    vector<float> weights;
+    vector<float> abscissa;
+    getGaussQuadSetup(integralres, weights, abscissa);
+    int actres = abscissa.size();
+    cout << "Using " << actres << " points for integration!" << endl;
+    auto gpuabscissa = &abscissa[0];
+    auto gpuweights = &weights[0];
+
+    float pdbBounds[6] = { FLT_MAX, -FLT_MAX, FLT_MAX, -FLT_MAX, FLT_MAX, -FLT_MAX };
+
+    if (nAtoms != 0)
+    {
+        for (size_t i = 0; i < nAtoms; ++i)
+        {
+            if (gpuatoms[i].x < pdbBounds[0])
+                pdbBounds[0] = gpuatoms[i].x;
+            else if (gpuatoms[i].x > pdbBounds[1])
+                pdbBounds[1] = gpuatoms[i].x;
+
+            if (gpuatoms[i].y < pdbBounds[2])
+                pdbBounds[2] = gpuatoms[i].y;
+            else if (gpuatoms[i].y > pdbBounds[3])
+                pdbBounds[3] = gpuatoms[i].y;
+
+            if (gpuatoms[i].z < pdbBounds[4])
+                pdbBounds[4] = gpuatoms[i].z;
+            else if (gpuatoms[i].z > pdbBounds[5])
+                pdbBounds[5] = gpuatoms[i].z;
+        }
+
+        // find the spans
+        auto xspan = pdbBounds[1] - pdbBounds[0];
+        auto yspan = pdbBounds[3] - pdbBounds[2];
+        auto zspan = pdbBounds[5] - pdbBounds[4];
+
+        // find the center of the bounds
+        float boxCenter[3];
+        boxCenter[0] = (xspan / 2) + pdbBounds[0];
+        boxCenter[1] = (yspan / 2) + pdbBounds[2];
+        boxCenter[2] = (zspan / 2) + pdbBounds[4];
+
+        // expand the bounds for a border
+        xspan *= 1.1f;
+        yspan *= 1.1f;
+        zspan *= 1.1f;
+
+        // this is doing X. Purely for benchmark purposes
+        // logic needs to be added later for oter directions
+        auto maxSpan = max(yspan, zspan);
+        auto pointStep = maxSpan / (gridres - 1);
+
+        // move the view to the new location
+        pdbBounds[0] = boxCenter[0] - (xspan / 2);
+        pdbBounds[1] = boxCenter[0] + (xspan / 2);
+        pdbBounds[2] = boxCenter[1] - (maxSpan / 2);
+        pdbBounds[3] = boxCenter[1] + (maxSpan / 2);
+        pdbBounds[4] = boxCenter[2] - (maxSpan / 2);
+        pdbBounds[5] = boxCenter[2] + (maxSpan / 2);
+
+        //Make sure we can use the graphics card (This calculation would be unresonable otherwise)
+        if (cudaSetDevice(0) != cudaSuccess) {
+            cerr << "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?" << endl;
+            goto noCuda;
+        }
+
+        // find out how much we can calculate
+        cudaDeviceProp deviceProp;
+        cudaError_t cudaResult;
+        cudaResult = cudaGetDeviceProperties(&deviceProp, 0);
+
+        if (cudaResult != cudaSuccess)
+        {
+            cerr << "cudaGetDeviceProperties failed!" << endl;
+            goto noCuda;
+        }
+
+        // get how much mem we (in theory) have
+        size_t cudaFreeMem;
+        cudaResult = cudaMemGetInfo(&cudaFreeMem, NULL);
+
+        if (cudaResult != cudaSuccess)
+        {
+            cerr << "cudaMemGetInfo failed!" << endl;
+            goto noCuda;
+        }
+
+        // Calculate available memory
+        auto memdielectricmatrix = (actres * nAtoms * sizeof(float));
+        size_t freemem = (cudaFreeMem * 0.10f) - (nAtoms * sizeof(GPUChargeAtom)) - sizeof(GPUEFP) - memdielectricmatrix - (2 * nAtoms * sizeof(float));
+        if (freemem < 0)
+        {
+            cout << "Error: Not enough memory for this calculation!" << endl;
+            return 1;
+        }
+        int slicesperiter = floor(freemem / memdielectricmatrix);
+        int iterReq = round(nAtoms / slicesperiter + 0.5f);
+        int resopsperiter = slicesperiter * actres;
+
+        //Start doing the actual analysis using the Effective Length method for the non-uniform dielectric
+        auto integralMatrix = new float[nAtoms];
+        auto alpha = (((2.99792458f * 2.99792458f) * 1.602176487f) / (5.142206f)) * 0.1f; //Conversion factor to make calculation spit out voltage in Gaussian 09 atomic units. Analogous to Coulomb's Constant.
+        cout << "Beginning electric potential calculations using \"effective length\" treatment for non-uniform dielectric." << endl;
+        float* results = new float[nSlices * gridlen];
+        for (int slice = 0; slice < nSlices; slice++)  //Cycle through each fluorine
+        {
+            cout << "Processing slice " << slice + 1 << " of " << nSlices << endl;
+            auto xval = ((slice + 1.0f) / (nSlices + 1)) * xspan + pdbBounds[0];
+
+            for (int fieldpoint = 0; fieldpoint < gridlen; fieldpoint++)
+            {
+                cout << "Processing step " << fieldpoint + 1 << " of " << gridlen << "\r";
+                GPUEFP testpoint;
+                testpoint.x = xval;
+                testpoint.y = fieldpoint % gridres;
+                testpoint.z = fieldpoint / gridres;
+
+                auto dielectricMatrix = new float[nAtoms * actres]; //The end dielectric matrix that will be used to calculate the field components
+                auto xspans = new float[nAtoms];
+                for (int j = 0; j < iterReq; j++) //Keep going until we process all the iteration chunks
+                {
+                    auto densityMatrix = new float[nAtoms * resopsperiter]; //Temporary density matrix
+                    //Run the density kernel to populate the density matrix
+                    eFieldDensityGQCuda(densityMatrix, xspans, gpuatomsarray, gpuabscissa, testpoint, variance, j * resopsperiter, resopsperiter, nAtoms, actres, deviceProp);
+                    if (cudaResult != cudaSuccess)
+                    {
+                        cout << "Failed to run density kernel." << endl;
+                        goto InnerKernelError;
+                    }
+
+                    //Run the dielectric kernel on the density matrix, and store the results in the dielectric matrix
+                    eFieldDielectricCuda(dielectricMatrix, densityMatrix, inDielectric, outDielectric, j * resopsperiter, resopsperiter, nAtoms, actres, deviceProp);
+                    if (cudaResult != cudaSuccess)
+                    {
+                        cout << "Failed to run dielectric kernel." << endl;
+                        goto InnerKernelError;
+                    }
+                InnerKernelError:
+                    delete[] densityMatrix;
+                    // if we didn't work the first time, don't keep going
+                    if (cudaResult != cudaSuccess)
+                        goto kernelFailed;
+                }
+
+                //Sqrt all the dielectrics (Needed for effective length method)
+                sqrtf2DCuda(dielectricMatrix, nAtoms, actres, deviceProp);
+                if (cudaResult != cudaSuccess)
+                {
+                    cout << "Failed to run sqrtf 2D kernel." << endl;
+                    goto KernelError;
+                }
+
+                //Do the integration to get the effective length
+                //trapIntegrationCuda(&integralMatrix[i * nAtoms], xspans, dielectricMatrix, nAtoms, actres, deviceProp);
+                gaussQuadIntegrationCuda(integralMatrix, xspans, dielectricMatrix, gpuweights, nAtoms, actres, deviceProp);
+                if (cudaResult != cudaSuccess)
+                {
+                    cout << "Failed to run trapezoid integration kernel." << endl;
+                    goto KernelError;
+                }
+                //Calculate all the field components and store them in the EFP matrix
+                electricPotentialCuda(&results[(slice * gridlen) + fieldpoint], integralMatrix, gpuatomsarray, alpha, 1, nAtoms, deviceProp);
+                if (cudaResult != cudaSuccess)
+                {
+                    cout << "Failed to run electric field component kernel." << endl;
+                    goto kernelFailed;
+                }
+            KernelError:
+                delete[] xspans;
+                delete[] dielectricMatrix;
+
+                if (cudaResult != cudaSuccess)
+                    goto kernelFailed;
+            }
+
+        }
+
+
+        //Print back the results
+        cout << "Took " << ((clock() - startTime) / ((double)CLOCKS_PER_SEC)) << endl;
+    kernelFailed:;
+
+    noCuda:;
+        delete[] integralMatrix;
+    }
+    else
+    {
+        cout << "Found no valid atoms. Exiting..." << endl;
+        return 2;
+    }
+
+    // cudaDeviceReset must be called before exiting in order for profiling and
+    // tracing tools such as Nsight and Visual Profiler to show complete traces.
+    auto cudaStatus = cudaDeviceReset();
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaDeviceReset failed!" << endl;
+        return 3;
+    }
+    cout << "Press enter to exit." << endl;
+    cin.get();
+    return 0;
+}
