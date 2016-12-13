@@ -27,6 +27,7 @@
 #include <tuple>
 #include <math.h>
 
+#include "kernel.cuh"
 #include "GPUTypes.h"
 
 using namespace std;
@@ -336,6 +337,21 @@ __global__ void electricFieldComponentKernel(GPUEFP *out, const float *inEffLeng
         out[j].fieldx = fieldx;
         out[j].fieldy = fieldy;
         out[j].fieldz = fieldz;
+    }
+}
+
+__global__ void electricFieldComponentKernel(float *out, const float *inEffLengths, const GPUChargeAtom *inAtoms, const float coulconst, const size_t nEFPs, const size_t nAtoms)
+{
+    int j = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (j < nEFPs)
+    {
+        float potential = 0.0f;
+        for (int i = 0; i < nAtoms; i++)
+        {
+            potential += (inAtoms[i].charge * coulconst) / (inEffLengths[(j*nAtoms) + i]);
+        }
+        out[j] = potential;
     }
 }
 
@@ -733,6 +749,98 @@ cudaError_t electricFieldComponentCuda(GPUEFP *out, const float *inEffLengths, c
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(out, dev_out, nEFPs * sizeof(GPUEFP), cudaMemcpyDeviceToHost);
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMemcpy failed!" << endl;
+        goto Error;
+    }
+
+    // clear all our device arrays
+Error:
+    cudaFree(dev_out);
+
+    return cudaStatus;
+}
+
+cudaError_t electricPotentialCuda(float *out, const float *inEffLengths, const GPUChargeAtom *inAtoms,
+    const float coulconst, const size_t nEFPs, const size_t nAtoms, cudaDeviceProp &deviceProp)
+{
+    // define device arrays
+    float *dev_out = 0;
+    float *dev_inEffLengths = 0;
+    GPUChargeAtom *dev_inAtoms = 0;
+    cudaError_t cudaStatus;
+
+    // Allocate GPU buffers for vectors.
+    cudaStatus = cudaMalloc((void**)&dev_out, nEFPs * sizeof(float));
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMalloc failed!" << endl;
+        goto Error;
+    }
+
+    cudaStatus = cudaMalloc((void**)&dev_inEffLengths, nAtoms * nEFPs * sizeof(float));
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMalloc failed!" << endl;
+        goto Error;
+    }
+
+    cudaStatus = cudaMalloc((void**)&dev_inAtoms, nAtoms * sizeof(GPUChargeAtom));
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMalloc failed!" << endl;
+        goto Error;
+    }
+
+    // Copy input vectors from host memory to GPU buffers.
+    cudaStatus = cudaMemcpy(dev_out, out, nEFPs * sizeof(float), cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMemcpy failed!" << endl;
+        goto Error;
+    }
+
+    cudaStatus = cudaMemcpy(dev_inEffLengths, inEffLengths, nAtoms * nEFPs * sizeof(float), cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMemcpy failed!" << endl;
+        goto Error;
+    }
+
+    cudaStatus = cudaMemcpy(dev_inAtoms, inAtoms, nAtoms * sizeof(GPUChargeAtom), cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaMemcpy failed!" << endl;
+        goto Error;
+    }
+
+    // find the most effective dimensions for our calculations
+    // use div because it's more accurrate than the rounding BS
+    auto gridDiv = div(nEFPs, deviceProp.maxThreadsPerBlock);
+    auto gridY = gridDiv.quot;
+
+    // ass backwards way of rounding up (maybe use the same trick as above? It might be "faster")
+    if (gridDiv.rem != 0)
+        gridY++;
+
+    // find the block and grid size
+    auto blockSize = deviceProp.maxThreadsPerBlock;
+    int gridSize = min(16 * deviceProp.multiProcessorCount, gridY);
+
+    // Launch a kernel on the GPU.
+    electricFieldComponentKernel << <gridSize, blockSize >> > (dev_out, dev_inEffLengths, dev_inAtoms, coulconst, nEFPs, nAtoms);
+    // Check for any errors launching the kernel
+    cudaStatus = cudaGetLastError();
+    if (cudaStatus != cudaSuccess) {
+        cerr << "electric field component kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
+        goto Error;
+    }
+
+    // cudaDeviceSynchronize waits for the kernel to finish, and returns
+    // any errors encountered during the launch.
+    cudaStatus = cudaDeviceSynchronize();
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching electric field component kernel!" << endl;
+        cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
+        goto Error;
+    }
+
+    // Copy output vector from GPU buffer to host memory.
+    cudaStatus = cudaMemcpy(out, dev_out, nEFPs * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
         goto Error;

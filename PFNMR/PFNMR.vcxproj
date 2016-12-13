@@ -101,6 +101,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <CudaCompile Include="kernel.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CalculationMethods.cpp" />
     <ClCompile Include="CSVReader.cpp" />
     <ClCompile Include="GaussQuadrature.cpp" />
     <ClCompile Include="GPUTypes.h" />
@@ -108,11 +109,13 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClCompile Include="PDBProcessor.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CalculationMethods.h" />
     <ClInclude Include="CSVReader.h" />
     <ClInclude Include="GaussQuadrature.h" />
     <ClInclude Include="gif.h" />
     <ClInclude Include="Heatmap.h" />
     <ClInclude Include="helper_string.h" />
+    <ClInclude Include="kernel.cuh" />
     <ClInclude Include="PDBProcessor.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
