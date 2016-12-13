@@ -48,6 +48,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;WIN64;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BrowseInformation>true</BrowseInformation>
+      <OpenMPSupport>true</OpenMPSupport>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -78,6 +79,7 @@ copy "$(ProjectDir)shaders\*" "$(OutDir)"</Command>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;WIN64;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <OpenMPSupport>true</OpenMPSupport>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -101,34 +103,45 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <CudaCompile Include="kernel.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CalculationMethods.cpp" />
     <ClCompile Include="CSVReader.cpp" />
     <ClCompile Include="displayUtils\controls.cpp" />
+    <ClCompile Include="displayUtils\shader.cpp" />
+    <ClCompile Include="GaussQuadrature.cpp" />
     <ClCompile Include="KAKSI.cpp" />
     <ClCompile Include="PFDProcessor.cpp" />
     <ClCompile Include="ProteinDisplay.cpp" />
     <ClCompile Include="GPUTypes.h" />
+    <ClCompile Include="KAKSI.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="PDBProcessor.cpp" />
-    <ClCompile Include="displayUtils\shader.cpp" />
+    <ClCompile Include="PFDProcessor.cpp" />
+    <ClCompile Include="ProteinDisplay.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CalculationMethods.h" />
     <ClInclude Include="CSVReader.h" />
     <ClInclude Include="displayUtils\controls.h" />
     <ClInclude Include="KAKSI.h" />
     <ClInclude Include="PFDProcessor.h" />
     <ClInclude Include="ProteinDisplay.h" />
+    <ClInclude Include="displayUtils\shader.h" />
+    <ClInclude Include="GaussQuadrature.h" />
     <ClInclude Include="gif.h" />
     <ClInclude Include="Heatmap.h" />
     <ClInclude Include="helper_string.h" />
+    <ClInclude Include="KAKSI.h" />
+    <ClInclude Include="kernel.cuh" />
     <ClInclude Include="PDBProcessor.h" />
-    <ClInclude Include="displayUtils\shader.h" />
+    <ClInclude Include="PFDProcessor.h" />
+    <ClInclude Include="ProteinDisplay.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
-    <None Include="shaders\PFNMRwirefrag.fragmentshader" />
-    <None Include="shaders\PFNMRwirevert.vertexshader" />
     <None Include="shaders\PFNMRtexfrag.fragmentshader" />
     <None Include="shaders\PFNMRtexvert.vertexshader" />
+    <None Include="shaders\PFNMRwirefrag.fragmentshader" />
+    <None Include="shaders\PFNMRwirevert.vertexshader" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

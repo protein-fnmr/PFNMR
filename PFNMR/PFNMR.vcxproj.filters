@@ -14,19 +14,21 @@
     <ClCompile Include="GPUTypes.h">
       <Filter>Misc Headers</Filter>
     </ClCompile>
-    <ClCompile Include="displayUtils\shader.cpp">
-      <Filter>Display Utilities</Filter>
-    </ClCompile>
+    <ClCompile Include="CalculationMethods.cpp" />
+    <ClCompile Include="GaussQuadrature.cpp" />
     <ClCompile Include="displayUtils\controls.cpp">
       <Filter>Display Utilities</Filter>
     </ClCompile>
-    <ClCompile Include="ProteinDisplay.cpp">
+    <ClCompile Include="KAKSI.cpp">
       <Filter>Display Utilities</Filter>
     </ClCompile>
     <ClCompile Include="PFDProcessor.cpp">
       <Filter>File Handling</Filter>
     </ClCompile>
-    <ClCompile Include="KAKSI.cpp">
+    <ClCompile Include="displayUtils\shader.cpp">
+      <Filter>Display Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="ProteinDisplay.cpp">
       <Filter>Display Utilities</Filter>
     </ClCompile>
   </ItemGroup>
@@ -46,19 +48,22 @@
     <ClInclude Include="helper_string.h">
       <Filter>Misc Headers</Filter>
     </ClInclude>
-    <ClInclude Include="displayUtils\shader.h">
-      <Filter>Display Utilities</Filter>
-    </ClInclude>
+    <ClInclude Include="CalculationMethods.h" />
+    <ClInclude Include="GaussQuadrature.h" />
+    <ClInclude Include="kernel.cuh" />
     <ClInclude Include="displayUtils\controls.h">
       <Filter>Display Utilities</Filter>
     </ClInclude>
-    <ClInclude Include="ProteinDisplay.h">
+    <ClInclude Include="KAKSI.h">
       <Filter>Display Utilities</Filter>
     </ClInclude>
     <ClInclude Include="PFDProcessor.h">
       <Filter>File Handling</Filter>
     </ClInclude>
-    <ClInclude Include="KAKSI.h">
+    <ClInclude Include="displayUtils\shader.h">
+      <Filter>Display Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="ProteinDisplay.h">
       <Filter>Display Utilities</Filter>
     </ClInclude>
   </ItemGroup>
