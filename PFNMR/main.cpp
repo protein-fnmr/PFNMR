@@ -23,6 +23,7 @@
 #include <math.h>
 
 #include "kernel.cuh"
+#include "ProteinDisplay.h"
 #include "CalculationMethods.h"
 #include "PDBProcessor.h"
 #include "CSVReader.h"
@@ -173,6 +174,9 @@ int main(int argc, char **argv)
     //JME: PLEASE NOTE-The code implemented so far has ONLY been tested on an IFABP PDB file with the PHE residues replace for p-fluoro-phenylalanine.  It is potentially very breakable code for other PDBs.
     if (checkCmdLineFlag(argc, (const char**)argv, "test"))
     {
+        ProteinDisplay display;
+        display.initDisplay();
+        return 0;
         return electricFieldCalculation(pdbFilePath, 10, inDielectric, outDielectric, relVariance);
     }
 #endif
