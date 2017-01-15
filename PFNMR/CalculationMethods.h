@@ -19,6 +19,7 @@
 #include <vector>
 
 void getGaussQuadSetup(int points, vector<float> & outWeights, vector<float> & outAbscissa);
+int createDielectricPFDFile(string outpfdpath, string pdbFilePath, string colorcsvpath, int nSlices, int imgSize, float outDielectric, float inDielectric, float relVariance);
 int oldElectricFieldCalculation(string pdbPath, const float lineresolution, const float inDielectric, const float outDielectric, const float variance);
 int electricFieldCalculation(string pdbPath, const int res, const float inDielectric, const float outDielectric, const float variance);
 int electricPotentialCalculation(string pdbPath, const int integralres, const int nSlices, const int gridres, const float inDielectric, const float outDielectric, const float variance);

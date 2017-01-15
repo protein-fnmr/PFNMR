@@ -23,9 +23,11 @@
 
 #include "kernel.cuh"
 
+#include "Heatmap.h"
 #include "CalculationMethods.h"
 #include "CSVReader.h"
 #include "PDBProcessor.h"
+#include "PFDProcessor.h"
 
 using namespace std;
 
@@ -97,6 +99,262 @@ void getGaussQuadSetup(int points, vector<float> & outWeights, vector<float> & o
         outAbscissa.push_back(0.8650633666889845f);
         outAbscissa.push_back(-0.9739065285171717f);
         outAbscissa.push_back(0.9739065285171717f);
+    }
+}
+
+int createDielectricPFDFile(string outpfdpath, string pdbFilePath, string colorcsvpath, int nSlices, int imgSize, float outDielectric, float inDielectric, float relVariance)
+{
+    int imgSizeSq = imgSize * imgSize;
+    PDBProcessor pdbProcessor(pdbFilePath);
+
+    if (!pdbProcessor.is_open())
+    {
+        cout << "Failed to open " << pdbFilePath << ". Make sure the file exists or is accessible." << endl << "Exiting..." << endl;
+        return 1;
+    }
+    auto atoms = pdbProcessor.getAtomsFromPDB();
+    auto gpuAtoms = pdbProcessor.getGPUAtomsFromAtoms(atoms);
+
+    CSVReader csv(colorcsvpath);
+    auto colortable = csv.readCSVFile();
+
+    PFDWriter pfd;
+    openPFDFileWriter(&pfd, outpfdpath);
+    writeStructurePFDInfo(&pfd, atoms, colortable);
+
+    // get the count
+    auto nAtoms = gpuAtoms.size();
+
+    // set default pdbBounds
+    float pdbBounds[6] = { FLT_MAX, -FLT_MAX, FLT_MAX, -FLT_MAX, FLT_MAX, -FLT_MAX };
+
+    if (nAtoms != 0)
+    {
+        vector<float> hmrange;
+        hmrange.push_back(inDielectric);
+        hmrange.push_back(outDielectric);
+        writeHeatmapSetHeader(&pfd, nSlices, imgSize, hmrange);
+
+        // find the bounds
+        for (size_t i = 0; i < nAtoms; ++i)
+        {
+            if (gpuAtoms[i].x < pdbBounds[0])
+                pdbBounds[0] = gpuAtoms[i].x;
+            else if (gpuAtoms[i].x > pdbBounds[1])
+                pdbBounds[1] = gpuAtoms[i].x;
+
+            if (gpuAtoms[i].y < pdbBounds[2])
+                pdbBounds[2] = gpuAtoms[i].y;
+            else if (gpuAtoms[i].y > pdbBounds[3])
+                pdbBounds[3] = gpuAtoms[i].y;
+
+            if (gpuAtoms[i].z < pdbBounds[4])
+                pdbBounds[4] = gpuAtoms[i].z;
+            else if (gpuAtoms[i].z > pdbBounds[5])
+                pdbBounds[5] = gpuAtoms[i].z;
+        }
+
+        // find the spans
+        auto xspan = pdbBounds[1] - pdbBounds[0];
+        auto yspan = pdbBounds[3] - pdbBounds[2];
+        auto zspan = pdbBounds[5] - pdbBounds[4];
+
+        // find the center of the bounds
+        float boxCenter[3];
+        boxCenter[0] = (xspan / 2) + pdbBounds[0];
+        boxCenter[1] = (yspan / 2) + pdbBounds[2];
+        boxCenter[2] = (zspan / 2) + pdbBounds[4];
+
+        // expand the bounds for a border
+        xspan *= 1.1f;
+        yspan *= 1.1f;
+        zspan *= 1.1f;
+
+        // this is doing X. Purely for benchmark purposes
+        // logic needs to be added later for oter directions
+        auto maxSpan = max(yspan, zspan);
+        auto pointStep = maxSpan / (imgSize - 1);
+
+        // move the view to the new location
+        pdbBounds[0] = boxCenter[0] - (xspan / 2);
+        pdbBounds[1] = boxCenter[0] + (xspan / 2);
+        pdbBounds[2] = boxCenter[1] - (maxSpan / 2);
+        pdbBounds[3] = boxCenter[1] + (maxSpan / 2);
+        pdbBounds[4] = boxCenter[2] - (maxSpan / 2);
+        pdbBounds[5] = boxCenter[2] + (maxSpan / 2);
+
+        // THIS WILL EVENTUALLY BE LOOPED FOR MULTI-GPU
+        // Choose which GPU to run on, change this on a multi-GPU system.
+        if (cudaSetDevice(0) != cudaSuccess) {
+            cerr << "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?" << endl;
+            goto noCuda;
+        }
+
+        // find out how much we can calculate
+        cudaDeviceProp deviceProp;
+        cudaError_t cudaResult;
+        cudaResult = cudaGetDeviceProperties(&deviceProp, 0);
+
+        if (cudaResult != cudaSuccess)
+        {
+            cerr << "cudaGetDeviceProperties failed!" << endl;
+            goto noCuda;
+        }
+
+        // get how much mem we (in theory) have
+        size_t cudaFreeMem;
+        cudaResult = cudaMemGetInfo(&cudaFreeMem, NULL);
+
+        if (cudaResult != cudaSuccess)
+        {
+            cerr << "cudaMemGetInfo failed!" << endl;
+            goto noCuda;
+        }
+
+        // this nonsense calculates how much we can do at a time for 45% of the memory
+        size_t nGpuGridPointBase = floor((cudaFreeMem * 0.25f - (nAtoms * sizeof(GPUAtom))) / ((nAtoms * sizeof(float)) + sizeof(GridPoint)));
+        int itersReq = round(imgSizeSq / nGpuGridPointBase + 0.5f); // pull some computer math bs to make this work
+        auto gridPoints = new GridPoint[imgSizeSq];
+
+        // perform the operation over every slice
+        for (int slice = 0; slice < nSlices; ++slice)
+        {
+            cout << "Calculating slice " << slice + 1 << " of " << nSlices << endl;
+
+            // THIS RIGHT HERE WAS THE PROBLEM THE WHOLE TIME
+            // force a float value with 1.0f bs
+            auto xval = ((slice + 1.0f) / (nSlices + 1)) * xspan + pdbBounds[0];
+
+            // input all the new points into the grid
+            for (int y = 0; y < imgSize; ++y)
+            {
+                auto yval = pdbBounds[2] + (y * pointStep);
+
+                for (int z = 0; z < imgSize; ++z)
+                {
+                    size_t loc = (y * imgSize) + z;
+                    gridPoints[loc].x = xval;
+                    gridPoints[loc].y = yval;
+                    gridPoints[loc].z = pdbBounds[4] + (z * pointStep);
+                }
+            }
+
+            // go over every chunk (either every slice goes to the GPU, or every subslice...)
+            for (int subslice = 0; subslice < itersReq; ++subslice)
+            {
+                // start with the base number of points
+                auto nGpuGridPoint = nGpuGridPointBase;
+
+                // if we're at the end, we just use what is needed
+                if ((imgSizeSq - nGpuGridPointBase * subslice) < nGpuGridPointBase)
+                    nGpuGridPoint = imgSizeSq - nGpuGridPoint * subslice;
+
+                // create the gridpoint subset array
+                auto gpuGridPoints = new GridPoint[nGpuGridPoint];
+
+                // push values over to the gridpoint subset array
+                for (size_t j = 0; j < nGpuGridPoint; ++j)
+                    gpuGridPoints[j] = gridPoints[j + subslice * nGpuGridPointBase];
+
+                // create new arrays to store the output
+                auto densityOut = new float[nAtoms * nGpuGridPoint];
+                auto dielectricOut = new float[nGpuGridPoint];
+
+                // get all the densities for each pixel
+                cudaResult = sliceDensityCuda(densityOut, &gpuAtoms[0], gpuGridPoints, relVariance, nAtoms, nGpuGridPoint, deviceProp);
+                if (cudaResult != cudaSuccess)
+                {
+                    cout << "Failed to run density kernel." << endl;
+                    goto KernelError;
+                }
+
+                // get the dielectrics
+                cudaResult = sliceDielectricCuda(dielectricOut, densityOut, inDielectric, outDielectric, nAtoms, nGpuGridPoint, deviceProp);
+                if (cudaResult != cudaSuccess)
+                {
+                    cout << "Failed to run dielectric kernel." << endl;
+                    goto KernelError;
+                }
+
+                // copy the dielectric values from the gpu return back to the main gridpoint array
+                for (size_t j = 0; j < nGpuGridPoint; ++j)
+                    gridPoints[j + subslice * nGpuGridPointBase].dielectric = dielectricOut[j];
+
+                // delete all the stuff we don't need anymore
+            KernelError:
+                delete[] dielectricOut;
+                delete[] densityOut;
+                delete[] gpuGridPoints;
+
+                // if we didn't work the first time, don't keep going
+                if (cudaResult != cudaSuccess)
+                    goto kernelFailed;
+            }
+
+            //Write image data to file
+            
+            vector<float> planedims;
+            planedims.push_back(xval);
+            planedims.push_back(pdbBounds[2]);
+            planedims.push_back(pdbBounds[4]);
+            planedims.push_back(xval);
+            planedims.push_back(pdbBounds[3]);
+            planedims.push_back(pdbBounds[5]);
+
+            
+            auto image = new float[imgSizeSq];
+            for (int i = 0; i < imgSizeSq; i++)
+            {
+                image[i] = gridPoints[i].dielectric;
+            }
+            writeHeatmapFrameData(&pfd, image, planedims, imgSize);
+            
+            /*
+            auto image = new uint8_t[imgSizeSq * 4];
+
+            // move over each pixel
+            for (int y = 0; y < imgSize; ++y)
+            {
+                for (int x = 0; x < imgSize; ++x)
+                {
+                    // find the pixel location and it's heatmap value
+                    auto pixel = (y * imgSize) + x;
+                    auto percent = (outDielectric - gridPoints[pixel].dielectric) / (outDielectric - inDielectric);
+                    auto heat = getHeatMapColor(percent);
+
+                    // a pixel has 4 colors so mult by 4 and offset for each color
+                    // 0: R, 1: G, 2: B, 3: A
+                    image[pixel * 4] = (uint8_t)floor(heat[0] * 255);
+                    image[pixel * 4 + 1] = (uint8_t)floor(heat[1] * 255);
+                    image[pixel * 4 + 2] = (uint8_t)floor(heat[2] * 255);
+                    image[pixel * 4 + 3] = 255;
+
+                    delete[] heat;
+                }
+            }
+            writeDielectricFrameData(&pfd, image, planedims, imgSize);
+            */
+            delete[] image;
+        }
+
+    kernelFailed:
+        delete[] gridPoints;
+        closePFDFileWriter(&pfd);
+
+    noCuda:;
+    }
+    else
+    {
+        cout << "Found no valid atoms. Exiting..." << endl;
+        return 2;
+    }
+
+    // cudaDeviceReset must be called before exiting in order for profiling and
+    // tracing tools such as Nsight and Visual Profiler to show complete traces.
+    auto cudaStatus = cudaDeviceReset();
+    if (cudaStatus != cudaSuccess) {
+        cerr << "cudaDeviceReset failed!" << endl;
+        return 3;
     }
 }
 

@@ -19,9 +19,13 @@
 #ifndef PROTEINDISPLAY_H
 #define PROTEINDISPLAY_H
 
+#include <string>
+
+using namespace std;
+
 class ProteinDisplay {
 public:
-    int ProteinDisplay::initDisplay();
+    int ProteinDisplay::displayPFD(string pfd);
 };
 
 #endif

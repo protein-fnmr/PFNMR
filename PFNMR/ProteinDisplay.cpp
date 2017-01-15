@@ -67,7 +67,7 @@ void drawCylinder(vec3 & a, vec3 & b, const float radius, const int divisions)
 }
 
 
-int ProteinDisplay::initDisplay()
+int ProteinDisplay::displayPFD(string pfd)
 {
     // Initialise GLFW
     if (!glfwInit())
@@ -151,9 +151,11 @@ int ProteinDisplay::initDisplay()
     vector<vec2> texcoords;
     vector<GLuint> textureIDs;
     PFDReader reader;
-    openPFDFileReader(&reader, "test.pfd");
+    openPFDFileReader(&reader, pfd);
     bool trytexload = loadPFDTextureFile(&reader, atomverts, atomcols, wireindicies, helices, sheets, texverts, textureIDs);
     closePFDFileReader(&reader);
+
+    bool hastextures = textureIDs.size() > 0;
 
     for (int i = 0; i < textureIDs.size(); i++)
     {
@@ -164,30 +166,34 @@ int ProteinDisplay::initDisplay()
         texindicies.push_back((i * 4) + 3);
         texindicies.push_back((i * 4) + 2);
 
-        
+
         texcoords.push_back(vec2(1, 0));
         texcoords.push_back(vec2(1, 1));
         texcoords.push_back(vec2(0, 1));
         texcoords.push_back(vec2(0, 0));
-        
+
     }
 
     setTextureCap(textureIDs.size() - 1);
 
     GLuint texelembuff;
-    glGenBuffers(1, &texelembuff);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, texelembuff);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, texindicies.size() * sizeof(unsigned short), &texindicies[0], GL_STATIC_DRAW);
-
     GLuint texvertsbuffer;
-    glGenBuffers(1, &texvertsbuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, texvertsbuffer);
-    glBufferData(GL_ARRAY_BUFFER, texverts.size() * sizeof(vec3), &texverts[0], GL_STATIC_DRAW);
-
     GLuint texcoordbuffer;
-    glGenBuffers(1, &texcoordbuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, texcoordbuffer);
-    glBufferData(GL_ARRAY_BUFFER, texcoords.size() * sizeof(vec2), &texcoords[0], GL_STATIC_DRAW);
+
+    if (hastextures)
+    {
+        glGenBuffers(1, &texelembuff);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, texelembuff);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, texindicies.size() * sizeof(unsigned short), &texindicies[0], GL_STATIC_DRAW);
+
+        glGenBuffers(1, &texvertsbuffer);
+        glBindBuffer(GL_ARRAY_BUFFER, texvertsbuffer);
+        glBufferData(GL_ARRAY_BUFFER, texverts.size() * sizeof(vec3), &texverts[0], GL_STATIC_DRAW);
+
+        glGenBuffers(1, &texcoordbuffer);
+        glBindBuffer(GL_ARRAY_BUFFER, texcoordbuffer);
+        glBufferData(GL_ARRAY_BUFFER, texcoords.size() * sizeof(vec2), &texcoords[0], GL_STATIC_DRAW);
+    }
 
     GLuint wirevertbuffer;
     glGenBuffers(1, &wirevertbuffer);
@@ -267,52 +273,56 @@ int ProteinDisplay::initDisplay()
             (void*)0           // element array buffer offset
         );
 
-        // Send our transformation to the currently bound shader, 
-        // in the "MVP" uniform
-        glUseProgram(texprogramID);
+        if (hastextures)
+        {
+            // Send our transformation to the currently bound shader, 
+            // in the "MVP" uniform
+            glUseProgram(texprogramID);
 
-        glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
-        glUniform1f(alphaloc, getAlphaMod());
-        // Bind our texture in Texture Unit 0
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, textureIDs[getTextureNum()]);
-        // Set our "myTextureSampler" sampler to user Texture Unit 0
-        glUniform1i(TextureID, 0);
+            glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
+            glUniform1f(alphaloc, getAlphaMod());
+            // Bind our texture in Texture Unit 0
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, textureIDs[getTextureNum()]);
+            // Set our "myTextureSampler" sampler to user Texture Unit 0
+            glUniform1i(TextureID, 0);
 
-        // 1rst attribute buffer : vertices
-        glEnableVertexAttribArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, texvertsbuffer);
-        glVertexAttribPointer(
-            0,                  // attribute
-            3,                  // size
-            GL_FLOAT,           // type
-            GL_FALSE,           // normalized?
-            0,                  // stride
-            (void*)0            // array buffer offset
-        );
+            // 1rst attribute buffer : vertices
+            glEnableVertexAttribArray(0);
+            glBindBuffer(GL_ARRAY_BUFFER, texvertsbuffer);
+            glVertexAttribPointer(
+                0,                  // attribute
+                3,                  // size
+                GL_FLOAT,           // type
+                GL_FALSE,           // normalized?
+                0,                  // stride
+                (void*)0            // array buffer offset
+            );
 
-        // 2nd attribute buffer : UVs
-        glEnableVertexAttribArray(1);
-        glBindBuffer(GL_ARRAY_BUFFER, texcoordbuffer);
-        glVertexAttribPointer(
-            1,                                // attribute
-            2,                                // size
-            GL_FLOAT,                         // type
-            GL_FALSE,                         // normalized?
-            0,                                // stride
-            (void*)0                          // array buffer offset
-        );
+            // 2nd attribute buffer : UVs
+            glEnableVertexAttribArray(1);
+            glBindBuffer(GL_ARRAY_BUFFER, texcoordbuffer);
+            glVertexAttribPointer(
+                1,                                // attribute
+                2,                                // size
+                GL_FLOAT,                         // type
+                GL_FALSE,                         // normalized?
+                0,                                // stride
+                (void*)0                          // array buffer offset
+            );
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, texelembuff);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, texelembuff);
 
-        // Draw the triangles !
-        glDrawElements(
-            GL_TRIANGLES,      // mode
-            6,                  // count
-            GL_UNSIGNED_SHORT,   // type
-            (void*)(getTextureNum() * sizeof(unsigned short) * 6)           // element array buffer offset
-        );
+            // Draw the triangles !
+            glDrawElements(
+                GL_TRIANGLES,      // mode
+                6,                  // count
+                GL_UNSIGNED_SHORT,   // type
+                (void*)(getTextureNum() * sizeof(unsigned short) * 6)           // element array buffer offset
+            );
 
+
+        }
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);
         glDisableVertexAttribArray(2);

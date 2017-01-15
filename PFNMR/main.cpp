@@ -24,11 +24,12 @@
 
 #include "kernel.cuh"
 #include "ProteinDisplay.h"
+#include "Heatmap.h"
 #include "CalculationMethods.h"
 #include "PDBProcessor.h"
+#include "PFDProcessor.h"
 #include "CSVReader.h"
 #include "GPUTypes.h"
-#include "Heatmap.h"
 #include "gif.h"
 #include "helper_string.h"
 
@@ -174,9 +175,12 @@ int main(int argc, char **argv)
     //JME: PLEASE NOTE-The code implemented so far has ONLY been tested on an IFABP PDB file with the PHE residues replace for p-fluoro-phenylalanine.  It is potentially very breakable code for other PDBs.
     if (checkCmdLineFlag(argc, (const char**)argv, "test"))
     {
+        createDielectricPFDFile("maptest.pfd", pdbFilePath, "AtomColors.csv", nSlices, imgSize, outDielectric, inDielectric, relVariance);
+
         ProteinDisplay display;
-        display.initDisplay();
+        display.displayPFD("maptest.pfd");
         return 0;
+
         return electricFieldCalculation(pdbFilePath, 10, inDielectric, outDielectric, relVariance);
     }
 #endif

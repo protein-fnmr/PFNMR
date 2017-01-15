@@ -31,6 +31,12 @@
     <ClCompile Include="ProteinDisplay.cpp">
       <Filter>Display Utilities</Filter>
     </ClCompile>
+    <ClCompile Include="KAKSI.cpp" />
+    <ClCompile Include="PFDProcessor.cpp" />
+    <ClCompile Include="ProteinDisplay.cpp" />
+    <ClCompile Include="Heatmap.cpp">
+      <Filter>Display Utilities</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CSVReader.h">
@@ -40,9 +46,6 @@
       <Filter>File Handling</Filter>
     </ClInclude>
     <ClInclude Include="gif.h">
-      <Filter>Misc Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="Heatmap.h">
       <Filter>Misc Headers</Filter>
     </ClInclude>
     <ClInclude Include="helper_string.h">
@@ -64,6 +67,12 @@
       <Filter>Display Utilities</Filter>
     </ClInclude>
     <ClInclude Include="ProteinDisplay.h">
+      <Filter>Display Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="KAKSI.h" />
+    <ClInclude Include="PFDProcessor.h" />
+    <ClInclude Include="ProteinDisplay.h" />
+    <ClInclude Include="Heatmap.h">
       <Filter>Display Utilities</Filter>
     </ClInclude>
   </ItemGroup>

@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <fstream>
 
+#include "Heatmap.h"
 #include "GPUTypes.h"
 #include "PFDProcessor.h"
 
@@ -132,6 +133,7 @@ void writeSecondaryStructureData(PFDWriter* writer, vector<vector<Atom>> & helic
 
 }
 
+//[flag][side resolution][plane dimensions]{[data]}
 void writeDielectricFrameData(PFDWriter* writer, const uint8_t* image, vector<float> & planeDims, uint32_t imgSideResolution)
 {
     auto sidesqdata = imgSideResolution * imgSideResolution;
@@ -145,6 +147,51 @@ void writeDielectricFrameData(PFDWriter* writer, const uint8_t* image, vector<fl
     {
         memcpy(&buffer, &image[sizeof(uint8_t) * 4 * i], sizeof(uint8_t) * 4);
         writer->file.write(buffer, sizeof(uint8_t) * 4);
+    }
+}
+
+//[flag][num frames][side resolution][heatmap range]{[framedata]}
+//returns streampos of the header for rewriting
+streampos writeHeatmapSetHeader(PFDWriter *writer, short numframes, uint32_t imgSideResolution, vector<float> heatmaprange)
+{
+    auto pos = writer->file.tellp();
+    char buffer[29];
+    char flag = 'm';
+    memcpy(&buffer, &flag, sizeof(char));
+    memcpy(&buffer[sizeof(char)], &numframes, sizeof(short));
+    memcpy(&buffer[sizeof(char) + sizeof(short)], &imgSideResolution, sizeof(uint32_t));
+    memcpy(&buffer[sizeof(char) + sizeof(short) + sizeof(uint32_t)], &heatmaprange[0], sizeof(float) * 2);
+    writer->file.write(buffer, sizeof(char) + sizeof(short) + sizeof(uint32_t) + (sizeof(float) * 2));
+    return pos; 
+}
+
+//[flag][num frames][side resolution][heatmap range]{[framedata]}
+//writes to the specified position, then hops back to the original position
+void rewriteHeatmapSetHeader(PFDWriter *writer, short numframes, uint32_t imgSideResolution, vector<float> heatmaprange, streampos pos)
+{
+    auto origpos = writer->file.tellp();
+    writer->file.seekp(pos);
+    char buffer[29];
+    char flag = 'm';
+    memcpy(&buffer, &flag, sizeof(char));
+    memcpy(&buffer[sizeof(char)], &numframes, sizeof(short));
+    memcpy(&buffer[sizeof(char) + sizeof(short)], &imgSideResolution, sizeof(uint32_t));
+    memcpy(&buffer[sizeof(char) + sizeof(short) + sizeof(uint32_t)], &heatmaprange[0], sizeof(float) * 2);
+    writer->file.write(buffer, sizeof(char) + sizeof(short) + sizeof(uint32_t) + (sizeof(float) * 2));
+    writer->file.seekp(origpos);
+}
+
+//[planedims][data]
+void writeHeatmapFrameData(PFDWriter* writer, const float* image, vector<float> & planeDims, uint32_t imgSideResolution)
+{
+    auto sidesqdata = imgSideResolution * imgSideResolution;
+    char buffer[29];
+    memcpy(&buffer, &planeDims[0], sizeof(float) * 6);
+    writer->file.write(buffer, (sizeof(float) * 6));
+    for (int i = 0; i < sidesqdata; i++)
+    {
+        memcpy(&buffer, &image[i], sizeof(float));
+        writer->file.write(buffer, sizeof(float));
     }
 }
 
@@ -264,6 +311,7 @@ bool loadPFDTextureFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, ve
                 glm::vec3 temp(atoms[0], atoms[1], atoms[2]);
                 glm::vec3 temp2(atoms[3], atoms[4], atoms[5]);
                 out_helices.push_back({ temp , temp2 });
+                pos += sizeof(float) * 6;
                 break;
             }
             case 's':
@@ -273,6 +321,7 @@ bool loadPFDTextureFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, ve
                 glm::vec3 temp(atoms[0], atoms[1], atoms[2]);
                 glm::vec3 temp2(atoms[3], atoms[4], atoms[5]);
                 out_sheets.push_back({ temp , temp2 });
+                pos += sizeof(float) * 6;
                 break;
             }
             case 'd':
@@ -308,6 +357,61 @@ bool loadPFDTextureFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, ve
                 texIDs.push_back(textureID);
 
                 pos += sizeof(uint32_t) + (sizeof(float) * 6) + (sizeof(char) * sidesq * 4);
+                break;
+            }
+            case 'm':
+            {
+                short numframes;
+                uint32_t sideres;
+                float hmmin, hmmax;
+
+                //Get out the important header information
+                reader->file.read((char*)&numframes, sizeof(short));
+                reader->file.read((char*)&sideres, sizeof(uint32_t));
+                auto sidesq = sideres * sideres;
+                reader->file.read((char*)&hmmin, sizeof(float));
+                reader->file.read((char*)&hmmax, sizeof(float));
+                float hmrange = (hmmax - hmmin);
+
+                //Read each texture frame
+                for (int i = 0; i < numframes; i++)
+                {
+                    //Get the vertex position information
+                    float temp[6];
+                    reader->file.read((char*)&temp, sizeof(float) * 6);
+                    out_texverts.push_back(glm::vec3(temp[0], temp[1], temp[5]));
+                    out_texverts.push_back(glm::vec3(temp[3], temp[4], temp[5]));
+                    out_texverts.push_back(glm::vec3(temp[3], temp[4], temp[2]));
+                    out_texverts.push_back(glm::vec3(temp[0], temp[1], temp[2]));
+
+                    GLuint textureID;
+                    glGenTextures(1, &textureID);
+                    glBindTexture(GL_TEXTURE_2D, textureID);
+
+                    //Start reading off the data
+                    float * data;
+                    data = new float[sidesq * 4 * sizeof(float)];
+                    for (int j = 0; j < sidesq; j++)
+                    {
+                        float tempval;
+                        reader->file.read((char*)&tempval, sizeof(float)); //Read out a data value
+                        auto hmval = 1.0f - ((tempval - hmmin) / hmrange); //Calculate the heatmap value
+                        auto hmrgb = getHeatMapColor(hmval);
+                        memcpy(&data[j * 4], hmrgb, sizeof(float) * 3);
+                        data[j * 4 + 3] = 1.0f;
+                    }
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sideres, sideres, 0, GL_RGBA, GL_FLOAT, data);
+                    delete[] data;
+
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+                    glGenerateMipmap(GL_TEXTURE_2D);
+
+                    texIDs.push_back(textureID);                    
+                }
+                pos += sizeof(short) + sizeof(uint32_t) + (sizeof(float) * 2) + (numframes * ((sizeof(float) * (6 + sidesq))));
                 break;
             }
             default:

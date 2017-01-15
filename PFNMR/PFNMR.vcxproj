@@ -108,10 +108,8 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClCompile Include="displayUtils\controls.cpp" />
     <ClCompile Include="displayUtils\shader.cpp" />
     <ClCompile Include="GaussQuadrature.cpp" />
-    <ClCompile Include="KAKSI.cpp" />
-    <ClCompile Include="PFDProcessor.cpp" />
-    <ClCompile Include="ProteinDisplay.cpp" />
     <ClCompile Include="GPUTypes.h" />
+    <ClCompile Include="Heatmap.cpp" />
     <ClCompile Include="KAKSI.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="PDBProcessor.cpp" />
@@ -122,9 +120,6 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="CalculationMethods.h" />
     <ClInclude Include="CSVReader.h" />
     <ClInclude Include="displayUtils\controls.h" />
-    <ClInclude Include="KAKSI.h" />
-    <ClInclude Include="PFDProcessor.h" />
-    <ClInclude Include="ProteinDisplay.h" />
     <ClInclude Include="displayUtils\shader.h" />
     <ClInclude Include="GaussQuadrature.h" />
     <ClInclude Include="gif.h" />

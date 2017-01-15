@@ -40,6 +40,7 @@ public:
     bool is_open() { return isOpen; }
 
     vector<GPUAtom> getGPUAtoms();
+    vector<GPUAtom> PDBProcessor::getGPUAtomsFromAtoms(vector<Atom> & atoms);
     vector<GPUChargeAtom> getGPUChargeAtoms(vector<vector<string>> & chargetable);
     vector<Atom> PDBProcessor::getAtomsFromPDB();
     vector<GPUChargeAtom> getGPUChargeAtomsFromAtoms(vector<Atom> & atoms, vector<vector<string>> & chargetable);

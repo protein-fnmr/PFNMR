@@ -47,6 +47,9 @@ void closePFDFileReader(PFDReader* reader);
 void writeStructurePFDInfo(PFDWriter* writer, vector<Atom> & atoms, vector<vector<string>> & colorcsv);
 void writeDielectricFrameData(PFDWriter* writer, const uint8_t* image, vector<float> & planeDims, uint32_t imgSideResolution);
 void writeSecondaryStructureData(PFDWriter* writer, vector<vector<Atom>> & helices, vector<vector<Atom>> & sheets);
+streampos writeHeatmapSetHeader(PFDWriter *writer, short numframes, uint32_t imgSideResolution, vector<float> heatmaprange);
+void rewriteHeatmapSetHeader(PFDWriter *writer, short numframes, uint32_t imgSideResolution, vector<float> heatmaprange, streampos pos);
+void writeHeatmapFrameData(PFDWriter* writer, const float* image, vector<float> & planeDims, uint32_t imgSideResolution);
 
 bool loadPFDFile(PFDReader* reader, vector<glm::vec3> & out_atomverts, vector<glm::vec3> & out_atomcols, vector<unsigned short> & out_bondindicies,
     vector<vector<glm::vec3>> & out_helices, vector<vector<glm::vec3>> & out_sheets);

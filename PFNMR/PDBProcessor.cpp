@@ -219,6 +219,25 @@ vector<GPUAtom> PDBProcessor::getGPUAtoms()
     }
 }
 
+vector<GPUAtom> PDBProcessor::getGPUAtomsFromAtoms(vector<Atom> & atoms)
+{
+    vector<GPUAtom> gpuAtoms;
+    for (int i = 0; i < atoms.size(); i++)
+    {
+        auto resName = atoms[i].resName;
+        auto name = atoms[i].name;
+
+        GPUAtom curAtom;
+        curAtom.x = atoms[i].x;
+        curAtom.y = atoms[i].y;
+        curAtom.z = atoms[i].z;
+        curAtom.vdw = atoms[i].vdw;
+
+        gpuAtoms.push_back(curAtom);
+    }
+    return gpuAtoms;
+}
+
 vector<GPUChargeAtom> PDBProcessor::getGPUChargeAtoms(vector<vector<string>> & chargetable)
 {
     vector<GPUChargeAtom> gpuAtoms;
