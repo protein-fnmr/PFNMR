@@ -549,7 +549,7 @@ int oldElectricFieldCalculation(string pdbPath, const float lineresolution, cons
     return 0;
 }
 
-int electricFieldCalculation(string pdbPath, const int res, const float inDielectric, const float outDielectric, const float variance)
+int electricFieldCalculation(string pdbPath, const int res, const float inDielectric, const float outDielectric, const float variance, vector<float> & output)
 {
     clock_t startTime = clock();
     //Read the charge table and get the appropriate charged atoms
@@ -704,16 +704,19 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
 
         //Print back the electric field results
         {
+#ifdef OUTPUT_LOG
             ofstream logfile("testout.log", ofstream::out);
             cout << "Calculation results:" << endl;
             cout << "ChainId:\tResId:\tField-X:\tField-Y:\tField-Z:\tTotal:\tg09 Input:" << endl;
             logfile << "Calculation results:" << endl;
             logfile << "ChainId:\tResId:\tField-X:\tField-Y:\tField-Z:\tTotal:\tg09 Input:" << endl;
-
+#endif
             for (int i = 0; i < nFluorines; i++)
             {
                 cout << fluorines[i].chainid << "\t" << fluorines[i].resid << "\t" << fluorines[i].fieldx << "\t" << fluorines[i].fieldy << "\t" << fluorines[i].fieldz << "\t" << fluorines[i].getTotalField() << "\t" << (fluorines[i].getTotalField() * 10000.0f) << "\t" << endl;
+#ifdef OUTPUT_LOG
                 logfile << fluorines[i].chainid << "\t" << fluorines[i].resid << "\t" << fluorines[i].fieldx << "\t" << fluorines[i].fieldy << "\t" << fluorines[i].fieldz << "\t" << fluorines[i].getTotalField() << "\t" << (fluorines[i].getTotalField() * 10000.0f) << "\t" << endl;
+#endif
             }           
 
             //Get all the geometries of the fluorinated amino acids
@@ -733,25 +736,34 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
 
             //Rotate all the residues by the field vectors
             cout << "Rotating residues to align electric field to x-axis..." << endl;
+#ifdef OUTPUT_LOG
             logfile << "Rotating residues to align electric field to x-axis..." << endl;
             logfile << "Element:\tx:\ty:\tz:" << endl;
+#endif
             for (int i = 0; i < fluorinatedAAs.size(); i++)
             {
+#ifdef OUTPUT_LOG
                 logfile << endl << "Chain: " << fluorinatedAAs[i][0].chainID << "\tResID:" << fluorinatedAAs[i][0].resSeq << endl;
+ #endif
                 vector<float> fieldVect{ fluorines[i].fieldx, fluorines[i].fieldy, fluorines[i].fieldz };
                 rotateResidueToXField(fieldVect, fluorinatedAAs[i]);
+#ifdef OUTPUT_LOG
                 for (int j = 0; j < fluorinatedAAs[i].size(); j++)
                 {
                     logfile << fluorinatedAAs[i][j].element << "\t" << fluorinatedAAs[i][j].x << "\t" << fluorinatedAAs[i][j].y << "\t" << fluorinatedAAs[i][j].z << endl;
                 }
+#endif
             }
 
             //Start the actual NMR calculation based on the Monte Carlo fit data
             
             cout << endl;
             cout << "Beginning Monte Carlo fit based NMR calculation:" << endl;
+#ifdef OUTPUT_LOG
             logfile << endl;
             logfile << "Monte Carlo fit based NMR calculation:" << endl;
+#endif
+            output.resize(fluorinatedAAs.size());
             for (int i = 0; i < fluorinatedAAs.size(); i++)
             {
                 cout << "Processing residue " << fluorinatedAAs[i][0].resSeq << endl;
@@ -832,14 +844,18 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
                 //Get the NMR shift from the Monte Carlo fit equation
                 auto field = fluorines[i].getTotalField() * 5000.0f;
                 auto nmr = pheNMR(anglex, angley, anglez, field);
+#ifdef OUTPUT_LOG
                 logfile << "Residue: " << fluorinatedAAs[i][0].resSeq << "\t(" << anglex << "," << angley << "," << anglez << "," << field << "):\t" << nmr << endl;
+#endif
+                output[i] = nmr;
             }
 
             // output the time took
             cout << "Took " << ((clock() - startTime) / ((double)CLOCKS_PER_SEC)) << endl;
+#ifdef OUTPUT_LOG
             logfile << "Took " << ((clock() - startTime) / ((double)CLOCKS_PER_SEC)) << endl << endl;
-
             logfile.close();
+#endif
         }
     kernelFailed:;
 

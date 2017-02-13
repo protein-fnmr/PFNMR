@@ -37,6 +37,7 @@
     <ClCompile Include="Heatmap.cpp">
       <Filter>Display Utilities</Filter>
     </ClCompile>
+    <ClCompile Include="TrainingMethods.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CSVReader.h">
@@ -75,6 +76,7 @@
     <ClInclude Include="Heatmap.h">
       <Filter>Display Utilities</Filter>
     </ClInclude>
+    <ClInclude Include="TrainingMethods.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="File Handling">

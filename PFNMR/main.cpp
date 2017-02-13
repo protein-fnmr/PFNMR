@@ -21,11 +21,13 @@
 #include <string>
 #include <ctime>
 #include <math.h>
+#include <chrono>
 
 #include "kernel.cuh"
 #include "ProteinDisplay.h"
 #include "Heatmap.h"
 #include "CalculationMethods.h"
+#include "TrainingMethods.h"
 #include "PDBProcessor.h"
 #include "PFDProcessor.h"
 #include "CSVReader.h"
@@ -179,8 +181,122 @@ int main(int argc, char **argv)
         //createDielectricPFDFile("maptest_fine.pfd", pdbFilePath, "AtomColors.csv", 50, imgSize, outDielectric, inDielectric, relVariance);
         //ProteinDisplay display;
         //display.displayPFD("maptest_fine.pfd");
+        vector<float> nmrvalues;
+        electricFieldCalculation(pdbFilePath, 10, inDielectric, outDielectric, relVariance, nmrvalues);
+        return 0;
+    }
 
-        electricFieldCalculation(pdbFilePath, 10, inDielectric, outDielectric, relVariance);
+    if (checkCmdLineFlag(argc, (const char**)argv, "parameterize"))
+    {
+        vector<float> correctshifts;
+        correctshifts.push_back(-114.07f);
+        correctshifts.push_back(-113.84f);
+        correctshifts.push_back(-115.39f);
+        correctshifts.push_back(-117.27f);
+        correctshifts.push_back(-123.71f);
+        correctshifts.push_back(-121.35f);
+        correctshifts.push_back(-114.81f);
+        correctshifts.push_back(-117.93f);
+
+        CSVReader csv("ChargeTable.csv");
+        auto chargetable = csv.readCSVFile();
+        PDBProcessor pdb(pdbFilePath);
+        auto baseatoms = pdb.getAtomsFromPDB();
+        auto gpuatoms = pdb.getGPUChargeAtomsFromAtoms(baseatoms, chargetable);
+        vector<float> weights;
+        vector<float> abscissa;
+        getGaussQuadSetup(20, weights, abscissa);
+
+        if (baseatoms.size() == 0)
+        {
+            cout << "ERROR: No atoms found!" << endl;
+            cin.get();
+            return 1;
+        }
+
+        vector<GPUEFP> fluorines;
+        for (int i = 0; i < baseatoms.size(); i++)
+        {
+            if (baseatoms[i].element == "F")
+            {
+                GPUEFP newefp;
+                newefp.x = baseatoms[i].x;
+                newefp.y = baseatoms[i].y;
+                newefp.z = baseatoms[i].z;
+                newefp.chainid = (int)baseatoms[i].chainID;
+                newefp.resid = baseatoms[i].resSeq;
+                fluorines.push_back(newefp);
+            }
+        }
+
+        // find out how much we can calculate
+        cudaDeviceProp deviceProp;
+        cudaError_t cudaResult;
+        cudaResult = cudaGetDeviceProperties(&deviceProp, 0);
+
+        if (cudaResult != cudaSuccess)
+        {
+            cerr << "cudaGetDeviceProperties failed!" << endl;
+            return 1;
+        }
+
+        //TESTING PARAMETERS
+        auto maxvariance = 10.0f;
+        auto minvariance = 0.01f;
+        auto stepsvariance = 100.0f;
+        auto maxref = 10.0f;
+        auto minref = 0.01f;
+        auto stepsref = 100.0f;
+
+        //Calculated parameters
+        auto varstep = (maxvariance - minvariance) / stepsvariance;
+        auto refstep = (maxref - minref) / stepsref;
+
+        ofstream logfile("Parameterization.csv", ofstream::out);
+        logfile << "Parameterization results:" << endl;
+        logfile << "Row: Variance.  Column: Internal Reference" << endl;
+
+        float lowerror = FLT_MAX;
+        float bestvar = 0.0f;
+        float bestref = 0.0f;
+        //Print out the reference dielectric header
+        logfile << "  ,";
+        for (float ref = minref; ref <= maxref; ref += refstep)
+        {
+            logfile << ref << ",";
+        }
+        logfile << endl;
+        //Run the paramterization
+        for (float var = minvariance; var <= maxvariance; var+=varstep)
+        {
+            logfile << var << ",";
+            for (float ref = minref; ref <= maxref; ref += refstep)
+            {
+                vector<float> nmrresults;
+                electricFieldCalculationSilent(deviceProp, baseatoms, fluorines, gpuatoms, weights, abscissa,
+                    ref, outDielectric, var, nmrresults);
+                float error = 0.0f;
+                for (int i = 0; i < nmrresults.size(); i++)
+                {
+                    error += abs((nmrresults[i] - correctshifts[i]) / correctshifts[i]) * 100.0f;
+                }
+                error /= (float)nmrresults.size();
+                if (error < lowerror)
+                {
+                    lowerror = error;
+                    bestvar = var;
+                    bestref = ref;
+                }
+                cout << endl;
+                cout << "Error: " << error << "%\tRef: " << ref << "\tVar: " << var << endl;
+                cout << "Best error: " << lowerror << "%\tRef: " << bestref << "\tVar: " << bestvar << endl;
+                logfile << error << ",";
+            }
+            logfile << endl;
+        }
+        cout << "DONE WITH PARAMTERIZATION!" << endl;
+        cout << "Best results- Ref:" << bestref << "\tVar:" << bestvar << endl;
+        cin.get();
         return 0;
     }
 #endif

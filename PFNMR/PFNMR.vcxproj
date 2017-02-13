@@ -117,6 +117,7 @@ copy "$(ProjectDir)shaders\*" "$(OutDir)"</Command>
     <ClCompile Include="PDBProcessor.cpp" />
     <ClCompile Include="PFDProcessor.cpp" />
     <ClCompile Include="ProteinDisplay.cpp" />
+    <ClCompile Include="TrainingMethods.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CalculationMethods.h" />
@@ -132,6 +133,7 @@ copy "$(ProjectDir)shaders\*" "$(OutDir)"</Command>
     <ClInclude Include="PDBProcessor.h" />
     <ClInclude Include="PFDProcessor.h" />
     <ClInclude Include="ProteinDisplay.h" />
+    <ClInclude Include="TrainingMethods.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
