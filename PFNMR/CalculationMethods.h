@@ -18,6 +18,7 @@
 
 #include <vector>
 
+vector<float> crossprod(vector<float> & a, vector<float> & b);
 void getGaussQuadSetup(int points, vector<float> & outWeights, vector<float> & outAbscissa);
 int createDielectricPFDFile(string outpfdpath, string pdbFilePath, string colorcsvpath, int nSlices, int imgSize, float outDielectric, float inDielectric, float relVariance);
 int oldElectricFieldCalculation(string pdbPath, const float lineresolution, const float inDielectric, const float outDielectric, const float variance);

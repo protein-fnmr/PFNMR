@@ -31,6 +31,28 @@
 
 using namespace std;
 
+void rotateResidueToXField(vector<float> & fieldVect, vector<Atom> residue);
+
+vector<float> crossprod(vector<float> & a, vector<float> & b)
+{
+    vector<float> result;
+    result.push_back((a[1] * b[2]) - (a[2] * b[1]));
+    result.push_back((a[2] * b[0]) - (a[0] * b[2]));
+    result.push_back((a[0] * b[1]) - (a[1] * b[0]));
+    return result;
+}
+
+float pheNMR(float x, float y, float z, float field)
+{
+    //Average parameters from Monte Carlo fitting
+    auto a = -116.58f;
+    auto b = 0.009077721f;
+    auto c = 0.101656497f;
+    auto d = 0.01746456f;
+
+    return a + (b*field) - (c * field * cosf((d * z) - (d*y))) - (c * field * cosf((d * z) + (d*y)));
+}
+
 void getGaussQuadSetup(int points, vector<float> & outWeights, vector<float> & outAbscissa)
 {
     switch (points)
@@ -680,7 +702,7 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
             goto kernelFailed;
         }
 
-        //Print back the results
+        //Print back the electric field results
         {
             ofstream logfile("testout.log", ofstream::out);
             cout << "Calculation results:" << endl;
@@ -692,14 +714,133 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
             {
                 cout << fluorines[i].chainid << "\t" << fluorines[i].resid << "\t" << fluorines[i].fieldx << "\t" << fluorines[i].fieldy << "\t" << fluorines[i].fieldz << "\t" << fluorines[i].getTotalField() << "\t" << (fluorines[i].getTotalField() * 10000.0f) << "\t" << endl;
                 logfile << fluorines[i].chainid << "\t" << fluorines[i].resid << "\t" << fluorines[i].fieldx << "\t" << fluorines[i].fieldy << "\t" << fluorines[i].fieldz << "\t" << fluorines[i].getTotalField() << "\t" << (fluorines[i].getTotalField() * 10000.0f) << "\t" << endl;
+            }           
+
+            //Get all the geometries of the fluorinated amino acids
+            vector<vector<Atom>> fluorinatedAAs;
+            for (int i = 0; i < fluorines.size(); i++)
+            {
+                vector<Atom> temp;
+                for (int j = 0; j < baseatoms.size(); j++)
+                {
+                    if ((baseatoms[j].resSeq == fluorines[i].resid))
+                    {
+                        temp.push_back(baseatoms[j]);
+                    }
+                }
+                fluorinatedAAs.push_back(temp);
             }
+
+            //Rotate all the residues by the field vectors
+            cout << "Rotating residues to align electric field to x-axis..." << endl;
+            logfile << "Rotating residues to align electric field to x-axis..." << endl;
+            logfile << "Element:\tx:\ty:\tz:" << endl;
+            for (int i = 0; i < fluorinatedAAs.size(); i++)
+            {
+                logfile << endl << "Chain: " << fluorinatedAAs[i][0].chainID << "\tResID:" << fluorinatedAAs[i][0].resSeq << endl;
+                vector<float> fieldVect{ fluorines[i].fieldx, fluorines[i].fieldy, fluorines[i].fieldz };
+                rotateResidueToXField(fieldVect, fluorinatedAAs[i]);
+                for (int j = 0; j < fluorinatedAAs[i].size(); j++)
+                {
+                    logfile << fluorinatedAAs[i][j].element << "\t" << fluorinatedAAs[i][j].x << "\t" << fluorinatedAAs[i][j].y << "\t" << fluorinatedAAs[i][j].z << endl;
+                }
+            }
+
+            //Start the actual NMR calculation based on the Monte Carlo fit data
+            
+            cout << endl;
+            cout << "Beginning Monte Carlo fit based NMR calculation:" << endl;
+            logfile << endl;
+            logfile << "Monte Carlo fit based NMR calculation:" << endl;
+            for (int i = 0; i < fluorinatedAAs.size(); i++)
+            {
+                cout << "Processing residue " << fluorinatedAAs[i][0].resSeq << endl;
+                //Build the coordinate template matrix
+                //TODO: This ONLY works with Phenylalanine.  Make this more universal with a look-up table for the coordinate indicies.
+                vector<vector<float>> coordtemplate;
+                coordtemplate.resize(3);
+                for (int i = 0; i < 3; i++)
+                {
+                    coordtemplate[i].resize(3);
+                }
+                coordtemplate[0][0] = fluorinatedAAs[i][11].x;   coordtemplate[0][1] = fluorinatedAAs[i][10].x;  coordtemplate[0][2] = fluorinatedAAs[i][9].x;
+                coordtemplate[1][0] = fluorinatedAAs[i][11].y;   coordtemplate[1][1] = fluorinatedAAs[i][10].y;  coordtemplate[1][2] = fluorinatedAAs[i][9].y;
+                coordtemplate[2][0] = fluorinatedAAs[i][11].z;   coordtemplate[2][1] = fluorinatedAAs[i][10].z;  coordtemplate[2][2] = fluorinatedAAs[i][9].z;
+
+                //Ensure the structure is centered properly
+                //TODO: This might not be necessary.  Double check.
+                for (int i = 0; i < 3; i++)
+                {
+                    for (int j = 0; j < 3; j++)
+                    {
+                        coordtemplate[j][i] -= coordtemplate[j][1];
+                    }
+                }
+
+                //Get the proposed de-rotated structure
+                vector<vector<float>> rotationmatrix;
+                rotationmatrix.resize(3);
+                for (int i = 0; i < 3; i++)
+                {
+                    rotationmatrix[i].resize(3);
+                }
+                vector<float> xvect;
+                xvect.push_back(coordtemplate[0][0]);
+                xvect.push_back(coordtemplate[1][0]);
+                xvect.push_back(coordtemplate[2][0]);
+                rotationmatrix[0][0] = xvect[0];
+                rotationmatrix[1][0] = xvect[1];
+                rotationmatrix[2][0] = xvect[2];
+
+                vector<float> ccvect;
+                ccvect.push_back(coordtemplate[0][2]);
+                ccvect.push_back(coordtemplate[1][2]);
+                ccvect.push_back(coordtemplate[2][2]);
+                auto zvect = crossprod(xvect, ccvect);
+                rotationmatrix[0][2] = zvect[0];
+                rotationmatrix[1][2] = zvect[1];
+                rotationmatrix[2][2] = zvect[2];
+
+                auto yvect = crossprod(zvect, xvect);
+                rotationmatrix[0][1] = yvect[0];
+                rotationmatrix[1][1] = yvect[1];
+                rotationmatrix[2][1] = yvect[2];
+
+                //Ensure rotation matrix is a unit vector matrix
+                for (int j = 0; j < 3; j++)
+                {
+                    auto mag = 0.0f;
+                    for (int k = 0; k < 3; k++)
+                    {
+                        mag += (rotationmatrix[k][j] * rotationmatrix[k][j]);
+                    }
+                    mag = sqrtf(mag);
+                    for (int k = 0; k < 3; k++)
+                    {
+                        rotationmatrix[k][j] /= mag;
+                    }
+                }
+
+                //Solve for the angles
+                auto angley = asinf(-1.0f * rotationmatrix[2][0]);
+                auto anglex = asinf(rotationmatrix[2][1] / cosf(angley));
+                auto anglez = asinf(rotationmatrix[1][0] / cosf(angley));
+                anglex *= (360.0f / (2.0f * M_PI));
+                angley *= (360.0f / (2.0f * M_PI));
+                anglez *= (360.0f / (2.0f * M_PI));
+
+                //Get the NMR shift from the Monte Carlo fit equation
+                auto field = fluorines[i].getTotalField() * 5000.0f;
+                auto nmr = pheNMR(anglex, angley, anglez, field);
+                logfile << "Residue: " << fluorinatedAAs[i][0].resSeq << "\t(" << anglex << "," << angley << "," << anglez << "," << field << "):\t" << nmr << endl;
+            }
+
             // output the time took
             cout << "Took " << ((clock() - startTime) / ((double)CLOCKS_PER_SEC)) << endl;
-            logfile << "Took " << ((clock() - startTime) / ((double)CLOCKS_PER_SEC)) << endl;
+            logfile << "Took " << ((clock() - startTime) / ((double)CLOCKS_PER_SEC)) << endl << endl;
+
             logfile.close();
         }
-
-
     kernelFailed:;
 
     noCuda:;
@@ -937,4 +1078,85 @@ int electricPotentialCalculation(string pdbPath, const int integralres, const in
     cout << "Press enter to exit." << endl;
     cin.get();
     return 0;
+}
+
+void rotateResidueToXField(vector<float> & fieldVect, vector<Atom> residue)
+{
+    //Ensure the field vector is a unit vector
+    auto fieldMag = sqrtf((fieldVect[0] * fieldVect[0]) + (fieldVect[1] * fieldVect[1]) + (fieldVect[2] * fieldVect[2]));
+    fieldVect[0] /= fieldMag;
+    fieldVect[1] /= fieldMag;
+    fieldVect[2] /= fieldMag;
+
+    //Calculate the rotation matrix based on: http://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
+    auto scalar = (1 - fieldVect[0]) / ((fieldVect[2] * fieldVect[2]) + (fieldVect[1] * fieldVect[1]));
+    vector<vector<float>> rotmatrix
+    {
+        { 1.0f, fieldVect[1], fieldVect[2] },
+        { -fieldVect[1], 1.0f, 0.0f },
+        { -fieldVect[2], 0.0f, 1.0f }
+    };
+    vector<vector<float>> rightmatrix
+    {
+        { (0.0f - (fieldVect[1] * fieldVect[1]) - (fieldVect[2] * fieldVect[2])) * scalar, 0.0f, 0.0f},
+        { 0.0f, (0.0f - (fieldVect[1] * fieldVect[1])) * scalar, (0.0f - (fieldVect[1] * fieldVect[2])) * scalar},
+        { 0.0f, (0.0f - (fieldVect[1] * fieldVect[2])) * scalar, (0.0f - (fieldVect[2] * fieldVect[2])) * scalar }
+    };
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            rotmatrix[i][j] += rightmatrix[i][j];
+        }
+    }
+
+    //Apply the rotation matrix to the residue to spin it around the origin
+    //TODO: Potentially have to convert coordinates to a unit vector set based on the fluorine atom position (its magnitude as the divisor)
+    vector<float> moleculedims{ FLT_MAX, FLT_MIN, FLT_MAX, FLT_MIN, FLT_MAX, FLT_MIN };
+    for (int i = 0; i < residue.size(); i++)
+    {
+        vector<float> newcoords
+        {
+            (rotmatrix[0][0] * residue[i].x) + (rotmatrix[0][1] * residue[i].y) + (rotmatrix[0][2] * residue[i].z),
+            (rotmatrix[1][0] * residue[i].x) + (rotmatrix[1][1] * residue[i].y) + (rotmatrix[1][2] * residue[i].z),
+            (rotmatrix[2][0] * residue[i].x) + (rotmatrix[2][1] * residue[i].y) + (rotmatrix[2][2] * residue[i].z)
+        };
+        residue[i].x = newcoords[0];
+        residue[i].y = newcoords[1];
+        residue[i].z = newcoords[2];
+
+        if (residue[i].x < moleculedims[0])
+        {
+            moleculedims[0] = residue[i].x;
+        }
+        if (residue[i].x > moleculedims[1])
+        {
+            moleculedims[1] = residue[i].x;
+        }
+        if (residue[i].y < moleculedims[2])
+        {
+            moleculedims[2] = residue[i].y;
+        }
+        if (residue[i].y > moleculedims[3])
+        {
+            moleculedims[3] = residue[i].y;
+        }
+        if (residue[i].z < moleculedims[4])
+        {
+            moleculedims[4] = residue[i].z;
+        }
+        if (residue[i].z > moleculedims[5])
+        {
+            moleculedims[5] = residue[i].z;
+        }
+    }
+
+    //Center the geometry
+    vector<float> centerpoint{ (moleculedims[0] + moleculedims[1]) / 2.0f, (moleculedims[2] + moleculedims[3]) / 2.0f, (moleculedims[4] + moleculedims[5]) / 2.0f };
+    for (int i = 0; i < residue.size(); i++)
+    {
+        residue[i].x -= centerpoint[0];
+        residue[i].y -= centerpoint[1];
+        residue[i].z -= centerpoint[2];
+    }
 }

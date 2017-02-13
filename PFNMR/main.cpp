@@ -175,13 +175,13 @@ int main(int argc, char **argv)
     //JME: PLEASE NOTE-The code implemented so far has ONLY been tested on an IFABP PDB file with the PHE residues replace for p-fluoro-phenylalanine.  It is potentially very breakable code for other PDBs.
     if (checkCmdLineFlag(argc, (const char**)argv, "test"))
     {
-        createDielectricPFDFile("maptest.pfd", pdbFilePath, "AtomColors.csv", nSlices, imgSize, outDielectric, inDielectric, relVariance);
+        //electricPotentialCalculation(pdbFilePath, 100, nSlices, imgSize, inDielectric, outDielectric, relVariance);
+        //createDielectricPFDFile("maptest_fine.pfd", pdbFilePath, "AtomColors.csv", 50, imgSize, outDielectric, inDielectric, relVariance);
+        //ProteinDisplay display;
+        //display.displayPFD("maptest_fine.pfd");
 
-        ProteinDisplay display;
-        display.displayPFD("maptest.pfd");
+        electricFieldCalculation(pdbFilePath, 10, inDielectric, outDielectric, relVariance);
         return 0;
-
-        return electricFieldCalculation(pdbFilePath, 10, inDielectric, outDielectric, relVariance);
     }
 #endif
 
