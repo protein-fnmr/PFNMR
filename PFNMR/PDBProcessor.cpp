@@ -232,6 +232,7 @@ vector<GPUAtom> PDBProcessor::getGPUAtomsFromAtoms(vector<Atom> & atoms)
         curAtom.y = atoms[i].y;
         curAtom.z = atoms[i].z;
         curAtom.vdw = atoms[i].vdw;
+        curAtom.resid = atoms[i].resSeq;
 
         gpuAtoms.push_back(curAtom);
     }

@@ -27,6 +27,7 @@ typedef struct _GPUAtom {
     float x;
     float y;
     float z;
+    int resid;
     float vdw = -1.0f;
 } GPUAtom;
 

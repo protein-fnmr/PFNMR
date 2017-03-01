@@ -83,7 +83,7 @@ int main(int argc, char **argv)
     }
 
     // define some default constants
-    auto outDielectric = 80.4f;
+    auto outDielectric = 80.0f;
     auto inDielectric = 4.0f;
     auto relVariance = 0.93f;
 
@@ -181,22 +181,110 @@ int main(int argc, char **argv)
         //createDielectricPFDFile("maptest_fine.pfd", pdbFilePath, "AtomColors.csv", 50, imgSize, outDielectric, inDielectric, relVariance);
         //ProteinDisplay display;
         //display.displayPFD("maptest_fine.pfd");
-        vector<float> nmrvalues;
-        electricFieldCalculation(pdbFilePath, 10, inDielectric, outDielectric, relVariance, nmrvalues);
+        vector<float> correctshifts;
+        correctshifts.push_back( 2.51f);
+        correctshifts.push_back( 2.74f);
+        correctshifts.push_back( 1.19f);
+        correctshifts.push_back(-0.69f);
+        correctshifts.push_back(-7.13f);
+        correctshifts.push_back(-4.77f);
+        correctshifts.push_back( 1.77f);
+        correctshifts.push_back(-1.35f);
+
+        auto correctcenter = 0.0f;
+        for (int i = 0; i < correctshifts.size(); i++)
+        {
+            correctcenter += correctshifts[i];
+        }
+        auto correctminmax = minmax_element(correctshifts.begin(), correctshifts.end());
+        auto correctrange = correctshifts[correctminmax.second - correctshifts.begin()] - correctshifts[correctminmax.first - correctshifts.begin()];
+        correctcenter /= correctshifts.size();
+
+        vector<string> filestoprocess { 
+            "D:\\Users\\Jon\\Desktop\\IFABP-TrainingSet\\Apo\\cluster1.pdb",
+            //"D:\\Users\\Jon\\Desktop\\IFABP-TrainingSet\\Apo\\cluster2.pdb",
+            //"D:\\Users\\Jon\\Desktop\\IFABP-TrainingSet\\Apo\\cluster3.pdb",
+            //"D:\\Users\\Jon\\Desktop\\IFABP-TrainingSet\\Apo\\cluster4.pdb",
+            //"D:\\Users\\Jon\\Desktop\\IFABP-TrainingSet\\Apo\\cluster5.pdb",
+            //"D:\\Users\\Jon\\Desktop\\IFABP-TrainingSet\\Apo\\4FF-IFABP-Apo.pdb"
+        };
+        
+        ofstream logfile("D:\\Users\\Jon\\Desktop\\IFABP-TrainingSet\\Apo\\PFNMR-Results.log", ofstream::out);
+
+        vector<float> totalerrors;
+        totalerrors.resize(correctshifts.size());
+        for (int fnum = 0; fnum < filestoprocess.size(); fnum++)
+        {
+            logfile << "Processing: " << filestoprocess[fnum] << endl;
+            vector<float> nmrvalues;
+            electricFieldCalculation(filestoprocess[fnum], 10, 4.0f, 75.0f, 0.73f, nmrvalues);
+
+            auto calccenter = 0.0f;
+            for (int i = 0; i < nmrvalues.size(); i++)
+            {
+                calccenter += nmrvalues[i];
+            }
+
+            auto calcminmax = minmax_element(nmrvalues.begin(), nmrvalues.end());
+            auto calcrange = nmrvalues[calcminmax.second - nmrvalues.begin()] - nmrvalues[calcminmax.first - nmrvalues.begin()];
+            calccenter /= nmrvalues.size();
+            calccenter -= correctcenter;
+
+            cout << "Correct range: [" << correctshifts[correctminmax.first - correctshifts.begin()] << ", " << correctshifts[correctminmax.second - correctshifts.begin()] << "]\t" << correctrange << endl;
+            cout << "Predict range: [" << nmrvalues[calcminmax.first - nmrvalues.begin()] << ", " << nmrvalues[calcminmax.second - nmrvalues.begin()] << "]\t" << calcrange << endl;
+            logfile << "Correct range: [" << correctshifts[correctminmax.first - correctshifts.begin()] << ", " << correctshifts[correctminmax.second - correctshifts.begin()] << "]\t" << correctrange << endl;
+            logfile << "Predict range: [" << nmrvalues[calcminmax.first - nmrvalues.begin()] << ", " << nmrvalues[calcminmax.second - nmrvalues.begin()] << "]\t" << calcrange << endl;
+
+            auto averageerror = 0.0f;
+
+            cout << "Offset value: " << calccenter << endl;
+            logfile << "Offset value: " << calccenter << endl;
+            for (int i = 0; i < nmrvalues.size(); i++)
+            {
+                nmrvalues[i] -= calccenter;
+                auto error = ((nmrvalues[i] - correctshifts[i]) / correctshifts[i]) * 100.0f;
+                totalerrors[i] += abs(error);
+                averageerror += abs(error);
+                cout << "[" << i << "]: " << nmrvalues[i] << " (" << correctshifts[i] << ")\t" << error << "%" << endl;
+                logfile << "[" << i << "]: " << nmrvalues[i] << " (" << correctshifts[i] << ")\t" << error << "%" << endl;
+            }
+            cout << endl;
+            logfile << endl;
+            averageerror /= (float)nmrvalues.size();
+            cout << "\t\tAverage Error: " << averageerror << "%" << endl;
+            cout << endl << endl;
+            logfile << "\t\tAverage Error: " << averageerror << "%" << endl;
+            logfile << endl << endl;
+        }
+
+        auto totalaverage = 0.0f;
+        for (int i = 0; i < totalerrors.size(); i++)
+        {
+            totalaverage += totalerrors[i];
+        }
+        totalaverage /= (float)(filestoprocess.size() * correctshifts.size());
+        cout << "\t\tTotal Average Error: " << totalaverage << "%" << endl;
+        logfile << "\t\tTotal Average Error: " << totalaverage << "%" << endl;
+        for (int i = 0; i < totalerrors.size(); i++)
+        {
+            totalerrors[i] /= (float)filestoprocess.size();
+            cout << "[" << i << "]: " << totalerrors[i] << "%" << endl;
+        }
+        cin.get();
         return 0;
     }
 
     if (checkCmdLineFlag(argc, (const char**)argv, "parameterize"))
     {
         vector<float> correctshifts;
-        correctshifts.push_back(-114.07f);
-        correctshifts.push_back(-113.84f);
-        correctshifts.push_back(-115.39f);
-        correctshifts.push_back(-117.27f);
-        correctshifts.push_back(-123.71f);
-        correctshifts.push_back(-121.35f);
-        correctshifts.push_back(-114.81f);
-        correctshifts.push_back(-117.93f);
+        correctshifts.push_back( 2.51f);
+        correctshifts.push_back( 2.74f);
+        correctshifts.push_back( 1.19f);
+        correctshifts.push_back(-0.69f);
+        correctshifts.push_back(-7.13f);
+        correctshifts.push_back(-4.77f);
+        correctshifts.push_back( 1.77f);
+        correctshifts.push_back(-1.35f);
 
         CSVReader csv("ChargeTable.csv");
         auto chargetable = csv.readCSVFile();

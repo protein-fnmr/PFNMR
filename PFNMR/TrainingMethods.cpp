@@ -223,7 +223,7 @@ void electricFieldCalculationSilent(cudaDeviceProp deviceProp, vector<Atom> & ba
 
             //Get the NMR shift from the Monte Carlo fit equation
             auto field = fluorines[i].getTotalField() * 5000.0f;
-            auto nmr = pheNMR(anglex, angley, anglez, field);
+            auto nmr = pheNMR(anglex, angley, anglez, 80.4f, field);
             output[i] = nmr;
 
         }

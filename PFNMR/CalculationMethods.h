@@ -25,6 +25,7 @@ int createDielectricPFDFile(string outpfdpath, string pdbFilePath, string colorc
 int oldElectricFieldCalculation(string pdbPath, const float lineresolution, const float inDielectric, const float outDielectric, const float variance);
 int electricFieldCalculation(string pdbPath, const int res, const float inDielectric, const float outDielectric, const float variance, vector<float> & output);
 int electricPotentialCalculation(string pdbPath, const int integralres, const int nSlices, const int gridres, const float inDielectric, const float outDielectric, const float variance);
-float pheNMR(float x, float y, float z, float field);
+float calculateAverageDielectric(int numpoints, float sphererad, vector<GPUAtom> atoms, GPUAtom & target, float variance, float inDielectric, float outDielectric);
+float pheNMR(float x, float y, float z, float d, float w);
 
 #endif

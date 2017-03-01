@@ -24,7 +24,10 @@
 cudaError_t sliceDensityCuda(float *out, const GPUAtom *inAtoms, const GridPoint *inGrid,
     const float variance, const size_t nAtoms, const size_t nGridPoints, cudaDeviceProp &deviceProp);
 
-cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDielectric,
+cudaError_t sliceDensityCudaIR(float *out, const GPUAtom *inAtoms, const GridPoint *inGrid,
+    const float variance, const int ignoredResidue, const size_t nAtoms, const size_t nGridPoints, cudaDeviceProp &deviceProp);
+
+cudaError_t sliceDielectricCuda(float *out, const float *inDensity, const float refDielectric,
     const float outdielectric, const size_t nAtoms, const size_t nGridPoints, cudaDeviceProp &deviceProp);
 
 cudaError_t eFieldDensityCuda(float *out, float *xspans, const GPUChargeAtom *inAtoms, const GPUEFP efp,

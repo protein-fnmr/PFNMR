@@ -15,6 +15,9 @@
 
 #define _USE_MATH_DEFINES
 
+#define NUM_SPHERE_POINTS   10000
+#define SPHERE_RADIUS       1.0f
+
 #include <stdio.h>
 #include <iostream>
 #include <ctime>
@@ -42,15 +45,19 @@ vector<float> crossprod(vector<float> & a, vector<float> & b)
     return result;
 }
 
-float pheNMR(float x, float y, float z, float field)
+float pheNMR(float x, float y, float z, float d, float w)
 {
     //Average parameters from Monte Carlo fitting
-    auto a = -116.58f;
-    auto b = 0.009077721f;
-    auto c = 0.101656497f;
-    auto d = 0.01746456f;
+    //auto a = 0.0f;  //-116.58f;
+    //auto b = 0.009077721f;
+    //auto c = 0.101656497f;
+    //auto d = 0.01746456f;
 
-    return a + (b*field) - (c * field * cosf((d * z) - (d*y))) - (c * field * cosf((d * z) + (d*y)));
+    //Old method without dielectric information
+    //return a + (b*field) - (c * field * cosf((d * y) - (d*z))) - (c * field * cosf((d * z) + (d*y)));
+
+    //Super specific method (with dielectric)
+    return (0.00478f * w) + ((5.8f + (0.0457f * w * cosf(0.0175f * y) * cosf(0.0175f * z))) / d) + (0.0457f * w * cosf(0.0175f * z) * cosf(0.0175f * z) * sinf(0.00478f * w * cosf(0.0175f * y))) - (0.203f * w * cosf(0.0175f * y) * cosf(0.0175f * z));
 }
 
 void getGaussQuadSetup(int points, vector<float> & outWeights, vector<float> & outAbscissa)
@@ -559,6 +566,7 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
     auto baseatoms = pdb.getAtomsFromPDB();
     auto nAtoms = baseatoms.size();
     auto gpuatoms = pdb.getGPUChargeAtomsFromAtoms(baseatoms, chargetable);
+    auto plaingpuatoms = pdb.getGPUAtomsFromAtoms(baseatoms);
     auto gpuatomsarray = &gpuatoms[0];
 
     vector<float> weights;
@@ -574,6 +582,7 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
     {
         //Find all the fluorines that will be processed
         vector<GPUEFP> fluorines;
+        vector<int> fluorinesindicies;
         for (int i = 0; i < baseatoms.size(); i++)
         {
             if (baseatoms[i].element == "F")
@@ -585,6 +594,7 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
                 newefp.chainid = (int)baseatoms[i].chainID;
                 newefp.resid = baseatoms[i].resSeq;
                 fluorines.push_back(newefp);
+                fluorinesindicies.push_back(i);
             }
         }
         auto gpuefparray = &fluorines[0];
@@ -764,9 +774,9 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
             logfile << "Monte Carlo fit based NMR calculation:" << endl;
 #endif
             output.resize(fluorinatedAAs.size());
+
             for (int i = 0; i < fluorinatedAAs.size(); i++)
             {
-                cout << "Processing residue " << fluorinatedAAs[i][0].resSeq << endl;
                 //Build the coordinate template matrix
                 //TODO: This ONLY works with Phenylalanine.  Make this more universal with a look-up table for the coordinate indicies.
                 vector<vector<float>> coordtemplate;
@@ -841,15 +851,18 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
                 angley *= (360.0f / (2.0f * M_PI));
                 anglez *= (360.0f / (2.0f * M_PI));
 
+
                 //Get the NMR shift from the Monte Carlo fit equation
-                auto field = fluorines[i].getTotalField() * 5000.0f;
-                auto nmr = pheNMR(anglex, angley, anglez, field);
+                auto field = fluorines[i].getTotalField() * 10000.0f;
+                auto dielectric = calculateAverageDielectric(10000, 1.0f, plaingpuatoms, plaingpuatoms[fluorinesindicies[i]], variance, inDielectric, outDielectric);
+                auto nmr = pheNMR(anglex, angley, anglez, dielectric, field);
+                output[i] = nmr;
+                cout << "Residue: " << fluorinatedAAs[i][0].resSeq << "\t(" << anglex << "," << angley << "," << anglez << "," << dielectric << "," << field << "):\t" << nmr << endl;
 #ifdef OUTPUT_LOG
-                logfile << "Residue: " << fluorinatedAAs[i][0].resSeq << "\t(" << anglex << "," << angley << "," << anglez << "," << field << "):\t" << nmr << endl;
+                logfile << "Residue: " << fluorinatedAAs[i][0].resSeq << "\t(" << anglex << "," << angley << "," << anglez << "," << dielectric << "," << field << "):\t" << nmr << endl;
 #endif
                 output[i] = nmr;
             }
-
             // output the time took
             cout << "Took " << ((clock() - startTime) / ((double)CLOCKS_PER_SEC)) << endl;
 #ifdef OUTPUT_LOG
@@ -875,8 +888,6 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
         cerr << "cudaDeviceReset failed!" << endl;
         return 3;
     }
-    cout << "Press enter to exit." << endl;
-    cin.get();
     return 0;
 }
 
@@ -1175,4 +1186,95 @@ void rotateResidueToXField(vector<float> & fieldVect, vector<Atom> residue)
         residue[i].y -= centerpoint[1];
         residue[i].z -= centerpoint[2];
     }
+}
+
+float calculateAverageDielectric(int numpoints, float sphererad, vector<GPUAtom> atoms, GPUAtom & target, float variance, float inDielectric, float outDielectric)
+{
+    //Setup a dummy sphere grid using cube carving
+    float average = -1.0f;
+    vector<GridPoint> spherepoints;
+    auto griddim = (int)floorf(cbrtf(numpoints) / 2.0f);
+    auto dimstep = sphererad / (float)griddim;
+    for (int x = 0; x < griddim; x++)
+    {
+        for (int y = 0; y < griddim; y++)
+        {
+            for (int z = 0; z < griddim; z++)
+            {
+                auto dist = sqrtf(((x * dimstep) * (x * dimstep)) + ((y * dimstep) * (y * dimstep)) + ((z * dimstep) * (z * dimstep)));
+                if (dist < sphererad && (x + y + z) != 0)
+                {
+                    GridPoint temp;
+                    temp.x = x * dimstep;
+                    temp.y = y * dimstep;
+                    temp.z = z * dimstep;
+                    spherepoints.push_back(temp);
+                    temp.x *= -1.0f;
+                    spherepoints.push_back(temp);
+                    temp.y *= -1.0f;
+                    spherepoints.push_back(temp);
+                    temp.z *= -1.0f;
+                    spherepoints.push_back(temp);
+                    temp.x *= -1.0f;
+                    spherepoints.push_back(temp);
+                    temp.y *= -1.0f;
+                    spherepoints.push_back(temp);
+                    temp.x *= -1.0f;
+                    spherepoints.push_back(temp);
+                    temp.x *= -1.0f;
+                    temp.y *= -1.0f;
+                    temp.z *= -1.0f;
+                    spherepoints.push_back(temp);
+                }
+            }
+        }
+    }
+
+    //Move the sphere points
+    for (int i = 0; i < spherepoints.size(); i++)
+    {
+        spherepoints[i].x += target.x;
+        spherepoints[i].y += target.y;
+        spherepoints[i].z += target.z;
+    }
+
+    cudaDeviceProp deviceProp;
+    cudaError_t cudaResult;
+    cudaResult = cudaGetDeviceProperties(&deviceProp, 0);
+
+    if (cudaResult != cudaSuccess)
+    {
+        cerr << "cudaGetDeviceProperties failed!" << endl;
+        goto noCUDA;
+    }
+
+    auto densitygrid = new float[atoms.size() * spherepoints.size()];
+    auto gpuatoms = &atoms[0];
+    auto gpugrid = &spherepoints[0];
+    auto outdigrid = new float[spherepoints.size()];
+
+    sliceDensityCudaIR(densitygrid, gpuatoms, gpugrid, variance, target.resid, atoms.size(), spherepoints.size(), deviceProp);
+    if (cudaResult != cudaSuccess)
+    {
+        cout << "Failed to run dielectric kernel." << endl;
+        goto InnerKernelError;
+    }
+    sliceDielectricCuda(outdigrid, densitygrid, inDielectric, outDielectric, atoms.size(), spherepoints.size(), deviceProp);
+    if (cudaResult != cudaSuccess)
+    {
+        cout << "Failed to run dielectric kernel." << endl;
+        goto InnerKernelError;
+    }
+    average = 0.0f;
+    for (int i = 0; i < spherepoints.size(); i++)
+    {
+        average += outdigrid[i];
+    }
+    average /= (float)spherepoints.size();
+
+InnerKernelError:
+    delete[] densitygrid;
+    delete[] outdigrid;
+noCUDA:
+    return average;
 }
