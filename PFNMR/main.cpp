@@ -70,6 +70,13 @@ int electricFieldCalculation(string pdbPath, const float lineresolution, const f
 int newEFieldMethod(string pdbPath, const int lineresolution, const float inDielectric, const float outDielectric, const float variance);
 #endif
 
+// test function for integration
+inline float funcA(const float &x)
+{
+    return ((0.25f * x * x * x) - (4.0f * x * cosf(1.25f * x))
+        - (3.0f * x * logf(x))) / sqrtf(x * x + (2.0f * x) + 4.0f);
+}
+
 // entry point
 int main(int argc, char **argv)
 {
@@ -95,6 +102,11 @@ int main(int argc, char **argv)
 
         return 0;
     }
+
+    //GaussQuadrature gq(false);
+    //cout << gq.Intergrate(0.2, 10, funcA) << endl;
+    //gq.SetMethod(GaussQuadrature::TWENTY); // optional, def: TEN
+    //cout << gq.Intergrate(0.2, 10, funcA) << endl;
 
     // check if "file" was defined
     if (checkCmdLineFlag(argc, (const char**)argv, "file"))
@@ -209,7 +221,7 @@ int main(int argc, char **argv)
 #endif
 
     // start a timer for benchmarking
-    clock_t startTime = clock();
+    auto startTime = clock();
 
     // read in a PDB file
     PDBProcessor pdbProcessor(pdbFilePath);
@@ -307,8 +319,8 @@ int main(int argc, char **argv)
             goto noCuda;
         }
 
-        // this nonsense calculates how much we can do at a time for 45% of the memory
-        size_t nGpuGridPointBase = floor((cudaFreeMem * 0.45f - (nAtoms * sizeof(GPUAtom))) / ((nAtoms * sizeof(float)) + sizeof(GridPoint)));
+        // this nonsense calculates how much we can do at a time for 20% of the memory
+        size_t nGpuGridPointBase = floor((cudaFreeMem * 0.20f - (nAtoms * sizeof(GPUAtom))) / ((nAtoms * sizeof(float)) + sizeof(GridPoint)));
         int itersReq = round(imgSizeSq / nGpuGridPointBase + 0.5f); // pull some computer math bs to make this work
         auto gridPoints = new GridPoint[imgSizeSq];
 
