@@ -17,6 +17,7 @@
     <ClCompile Include="GaussQuadrature.cpp">
       <Filter>Integration</Filter>
     </ClCompile>
+    <ClCompile Include="CalculationMethods.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CSVReader.h">
@@ -37,6 +38,8 @@
     <ClInclude Include="GaussQuadrature.h">
       <Filter>Integration</Filter>
     </ClInclude>
+    <ClInclude Include="kernel.cuh" />
+    <ClInclude Include="CalculationMethods.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="File Handling">
