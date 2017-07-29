@@ -13,28 +13,6 @@
 //      You should have received a copy of the GNU General Public License
 //      along with this program.If not, see <http://www.gnu.org/licenses/>.
 
-/*
- *  Gauss-Legendre Quadrature is a strange mathematical quirk, but aweseome.
- *  You can (in theory) define any number of points (n) you actually want to
- *  integrate and have it be as accurate as if integrating a 2n + 1 polynomial.
- *  More points is more accurate, but obviously requires more time to
- *  calculate. Adaptation is one way around needing more points, but comes
- *  at a price of potentially being more computationally intensive as the
- *  number of required points doubles each pass. e.g. (potenially bad scenario).
- *
- *  Ten-point adaptive: 10 points first pass  (one 21 degree polynomial)
- *                    + 20 points second pass (two 21 degree polynomials)
- *                    + 40 points third pass  (three 21 degree polynomials)
- *                    = 70 points in total (minimum)
- *
- *  Twenty-point plain: 20 points single pass (one 41 degree poly. MAYBE inaccurate)
- *
- *  This will become a VERY big deal when implementing in array-based GQ as
- *  determining the values of the "function" at the abscissae is already
- *  computationally intensive. Every pass is going to take much more time than
- *  the previous pass.
-*/
-
 #include <omp.h>
 #include <cmath>
 #include <vector>
@@ -43,15 +21,28 @@
 #include "GaussQuadrature.h"
 
 #define max(X, Y) (((X) > (Y)) ? (X) : (Y))
+#define DEF_EPS FLT_EPSILON * 10
 
-float GaussQuadrature::Intergrate(float begin, float end, float (*func)(const float&))
+inline float funcA(const float &x)
+{
+    return ((0.25f * x * x * x) - (4.0f * x * cosf(1.25f * x))
+        - (3.0f * x * logf(x))) / sqrtf(x * x + (2.0f * x) + 4.0f);
+}
+
+GaussQuadrature::GaussQuadrature(bool adaptive = false, float epsilon = DEF_EPS) :
+    bAdaptive(adaptive), fEps(epsilon)
+{
+}
+
+GaussQuadrature::~GaussQuadrature()
+{
+}
+
+float GaussQuadrature::Intergrate(float begin, float end)
 {
     std::vector<std::vector<float>> GQPoints;
     int count;
 
-    // the values being pushed are doubles converted to floats
-    // as floats can have 6-9 decimal places, this should ensure
-    // the maximum is used for each possible value at compile time
     switch (mMethod)
     {
     case TWENTY:
@@ -96,8 +87,8 @@ float GaussQuadrature::Intergrate(float begin, float end, float (*func)(const fl
     int i, divisions = 1;
     float sum = 0.0, newA, newB, halfBpa, halfBma, size, x;
 
-    // for now we should just assume the maxium number of logical CPUs + 1
-    auto maxThreads = omp_get_num_procs() + 1;
+    // for now we should just assume the maxium number of logical CPUs
+    auto maxThreads = omp_get_num_procs();
 
     while ((bAdaptive && (abs(prevSolution - solution) > fEps)) || divisions == 1)
     {
@@ -120,7 +111,7 @@ float GaussQuadrature::Intergrate(float begin, float end, float (*func)(const fl
             for (int j = 0; j < count; ++j)
             {
                 x = halfBma * GQPoints[j][1] + halfBpa;
-                sum += GQPoints[j][0] * func(x);
+                sum += GQPoints[j][0] * funcA(x);
             }
 
             #pragma omp critical
