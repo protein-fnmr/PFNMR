@@ -17,29 +17,33 @@
 #define __GUASSQUADRATURE_H
 
 #include <cfloat>
+#define DEF_EPS FLT_EPSILON * 10
 
 class GaussQuadrature
 {
 public:
-    enum INT_METHOD {
-        UNSET = -1,
-        TEN,
-        TWENTY
-    };
+	enum INT_METHOD {
+		UNSET = -1,
+		TEN,
+		TWENTY
+	};
 
 private:
-    INT_METHOD mMethod = UNSET;
-    bool bAdaptive;
-    float fEps;
+	INT_METHOD mMethod = UNSET;
+	bool bAdaptive;
+	float fEps;
 
 public:
-    GaussQuadrature(bool adaptive, float epsilon);
-    ~GaussQuadrature();
+	GaussQuadrature(bool adaptive = false, float epsilon = DEF_EPS) :
+		bAdaptive(adaptive), fEps(epsilon)
+	{
+	}
+	~GaussQuadrature() { };
 
-    float Intergrate(float begin, float end);
+	float Intergrate(float begin, float end, float(*func)(const float&));
 
-    void SetMethod(INT_METHOD method) { mMethod = method; };
-    INT_METHOD GetMethod() { return mMethod; };
+	void SetMethod(INT_METHOD method) { mMethod = method; };
+	INT_METHOD GetMethod() { return mMethod; };
 };
 
 #endif
