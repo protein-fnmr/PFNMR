@@ -22,14 +22,17 @@
 #include <ctime>
 #include <math.h>
 #include <chrono>
+#include <algorithm>
+#include <map>
+#include <random>
 
 #include "kernel.cuh"
-#include "ProteinDisplay.h"
+//#include "ProteinDisplay.h"
 #include "Heatmap.h"
 #include "CalculationMethods.h"
 #include "TrainingMethods.h"
 #include "PDBProcessor.h"
-#include "PFDProcessor.h"
+//#include "PFDProcessor.h"
 #include "CSVReader.h"
 #include "GPUTypes.h"
 #include "gif.h"
@@ -40,6 +43,7 @@
 using namespace std;
 
 #define EFIELDTESTING
+#define FULL_PARAM_LOG
 
 #define GIF_DELAY 10
 
@@ -60,7 +64,7 @@ int main(int argc, char **argv)
         argc < 2)
     {
         cout << "Usage: " << argv[0] << " -file=pdbFile (Required)" << endl;
-        cout << "      -oD=OutDielectric (Optional, Default 80.4)" << endl;
+        cout << "      -oD=OutDielectric (Optional, Default 80.0)" << endl;
         cout << "      -iD=InternalDielectric (Optional, Default 4.0)" << endl;
         cout << "      -rV=RelativeVarience (Optional, Default 0.93)" << endl << endl;
 		cout << "      -slices=SliceCount (Optional, Default 10)" << endl;
@@ -201,15 +205,10 @@ int main(int argc, char **argv)
         correctcenter /= correctshifts.size();
 
         vector<string> filestoprocess { 
-            "D:\\Users\\Jon\\Desktop\\IFABP-TrainingSet\\Apo\\cluster1.pdb",
-            //"D:\\Users\\Jon\\Desktop\\IFABP-TrainingSet\\Apo\\cluster2.pdb",
-            //"D:\\Users\\Jon\\Desktop\\IFABP-TrainingSet\\Apo\\cluster3.pdb",
-            //"D:\\Users\\Jon\\Desktop\\IFABP-TrainingSet\\Apo\\cluster4.pdb",
-            //"D:\\Users\\Jon\\Desktop\\IFABP-TrainingSet\\Apo\\cluster5.pdb",
-            //"D:\\Users\\Jon\\Desktop\\IFABP-TrainingSet\\Apo\\4FF-IFABP-Apo.pdb"
+			pdbFilePath
         };
         
-        ofstream logfile("D:\\Users\\Jon\\Desktop\\IFABP-TrainingSet\\Apo\\PFNMR-Results.log", ofstream::out);
+        ofstream logfile("PFNMR-Results.log", ofstream::out);
 
         vector<float> totalerrors;
         totalerrors.resize(correctshifts.size());
@@ -274,6 +273,348 @@ int main(int argc, char **argv)
         return 0;
     }
 
+	int gradientsteps = 1;
+	int maxsteps = 20;
+
+	if (checkCmdLineFlag(argc, (const char**)argv, "gradsteps"))
+	{
+		gradientsteps = getCmdLineArgumentInt(argc, (const char**)argv, "gradsteps");
+
+		if (gradientsteps < 1)
+		{
+			cout << "Error: Value for gradient steps must be greater than 1." << endl;
+			cout << "Exiting..." << endl;
+
+			return 1;
+		}
+	}
+
+	if (checkCmdLineFlag(argc, (const char**)argv, "maxsteps"))
+	{
+		maxsteps = getCmdLineArgumentInt(argc, (const char**)argv, "maxsteps");
+
+		if (maxsteps < 1)
+		{
+			cout << "Error: Value for max optimzation steps must be greater than 1." << endl;
+			cout << "Exiting..." << endl;
+
+			return 1;
+		}
+	}
+
+
+	if (checkCmdLineFlag(argc, (const char**)argv, "gradientparam"))
+	{
+		ofstream logfile("PFNMR-GradOptResults.log", ofstream::out);
+		//Uses concepts from: https://www.cs.cmu.edu/~ggordon/10725-F12/scribes/10725_Lecture5.pdf
+		//PARAMETERS TO OPTIMIZE
+		vector<vector<float>> params = {
+			{ 1.0f, 30.0f, 0.1f, 23.2961f },	//[0] Inner Dielectric
+			{ 70.0f, 90.0f, 0.1f, 86.9119f },	//[1] Outer Dielectric
+			{ 0.10f, 2.50f, 0.01f, 0.221146f },	//[2] Variance
+			{ 1.0f, 30.0f, 0.1f, 21.2f },	//[3] Inner Dielectric 2
+			{ 70.0f, 90.0f, 0.1f, 89.84f },	//[4] Outer Dielectric 2
+			{ 0.10f, 2.50f, 0.01f, 1.79988f },	//[5] Variance 2
+			{ 0.8f, 1.2f, 0.01f, 0.893421f },	//[6] EField Component Power
+			{ 0.8f, 1.2f, 0.1f, 0.982078f },		//[7] EField Component Multiplier
+			{ -1.0f, 1.0f, 0.1f, 0.00250125f },	//[8] EField Offset
+			{ 0.8f, 1.2f, 0.01f, 0.917875f },	//[9] EField Power
+			{ 0.8f, 1.2f, 0.1f, 1.00828f },		//[10]EField Multiplier
+			{ -1.0f, 1.0f, 0.1f, -0.300015f },	//[11]Dielectric Offset
+			{ 0.8f, 1.2f, 0.01f, 0.949967f },	//[12]Dielectric Power
+			{ 0.8f, 1.2f, 0.1f, 1.09985f },		//[13]Dielectric Multiplier
+			{ -1.0f, 1.0f, 0.01f, -0.57f },	//[14]NMR Offset
+			{ 0.8f, 1.2f, 0.1f, 1.0274f },		//[15]NMR Multiplier
+			{ 0.5f, 2.0f, 0.1f, 0.899856f }		//[16]DielectricShell
+		};
+		vector<string> paramnames = { 
+			"Inner Dielectric",
+			"Outer Dielectric",
+			"Variance",
+			"Inner Dielectric 2",
+			"Outer Dielectric 2",
+			"Variance 2",
+			"EField Component Power",
+			"EField Component Multiplier",
+			"EField Offset",
+			"EField Power",
+			"EField Multiplier",
+			"Dielectric Offset",
+			"Dielectric Power",
+			"Dielectric Multiplier",
+			"NMR Offset",
+			"NMR Multiplier",
+			"DielectricShell"
+		};
+		vector<int> paramstoopt = {};
+
+		//Relevant parameters
+		auto stepsize = 0.8f;
+		auto convergencethreshold = 0.001f;
+		auto res = 10;
+
+		//Correct chemical shift values for IFABP
+		map<int, float> IFABPShifts = {
+			{2  ,  2.51f},
+			{17 ,  2.74f},
+			{47 ,  1.19f},
+			{55 , -0.69f},
+			{62 , -7.13f},
+			{68 , -4.77f},
+			{93 ,  1.77f},
+			{128, -1.35f}
+		};
+		vector<int> rescheck = { 2, 17, 47, 55, 62, 68, 93, 128 };
+
+		CSVReader csv("ChargeTable.csv");
+		auto chargetable = csv.readCSVFile();
+		PDBProcessor pdb(pdbFilePath);
+		auto baseatoms = pdb.getAtomsFromPDB();
+		auto gpuatoms = pdb.getGPUChargeAtomsFromAtoms(baseatoms, chargetable);
+		vector<float> weights;
+		vector<float> abscissa;
+		getGaussQuadSetup(20, weights, abscissa);
+		if (baseatoms.size() == 0)
+		{
+			cout << "ERROR: No atoms found!" << endl;
+			cin.get();
+			return 1;
+		}
+
+		vector<GPUEFP> fluorines;
+		vector<float> correctshifts;
+		
+		for (int i = 0; i < baseatoms.size(); i++)
+		{
+			if (baseatoms[i].element == "F")
+			{
+				if (find(rescheck.begin(), rescheck.end(), baseatoms[i].resSeq) != rescheck.end())
+				{
+
+					GPUEFP newefp;
+					newefp.x = baseatoms[i].x;
+					newefp.y = baseatoms[i].y;
+					newefp.z = baseatoms[i].z;
+					newefp.chainid = (int)baseatoms[i].chainID;
+					newefp.resid = baseatoms[i].resSeq;
+					fluorines.push_back(newefp);
+					correctshifts.push_back(IFABPShifts[newefp.resid]);
+				}
+				else
+				{
+					cout << "ERROR: Fluorine on residue " << baseatoms[i].resSeq << " doesn't correspond to a correct chemical shift test value!" << endl;
+					cout << "Exitting..." << endl;
+					return 1;
+				}
+			}
+		}
+		
+		// find out how much we can calculate
+		cudaDeviceProp deviceProp;
+		cudaError_t cudaResult;
+		cudaResult = cudaGetDeviceProperties(&deviceProp, 0);
+
+		if (cudaResult != cudaSuccess)
+		{
+			cerr << "cudaGetDeviceProperties failed!" << endl;
+			return 1;
+		}
+//===================================================================================================================================================
+		int gradcounter = 0;
+		float bestoptimizationerror = FLT_MAX;
+		vector<float> bestparams;
+		for (int i = 0; i < paramstoopt.size(); ++i)
+		{
+			bestparams.push_back(0.0f);
+		}
+		do
+		{
+			cout << "===================================================================================================================================================" << endl;
+			cout << "Trial: " << (gradcounter + 1) << endl;
+			logfile << "===================================================================================================================================================" << endl;
+			logfile << "Trial: " << (gradcounter + 1) << endl;
+			//Initialize initial parameter states randomly
+			cout << "Initializing with the following values:" << endl;
+			logfile << "Initializing with the following values:" << endl;
+			random_device rd;
+			mt19937 e2(rd());
+			uniform_real_distribution<float> dist(0.0f, 1.0f);
+			for (int i = 0; i < paramstoopt.size(); ++i)
+			{
+				params[paramstoopt[i]][3] = rounderhelper((dist(e2) * (params[paramstoopt[i]][1] - params[paramstoopt[i]][0])) + params[paramstoopt[i]][0], params[paramstoopt[i]][2]);
+				cout << paramnames[paramstoopt[i]] << ": " << params[paramstoopt[i]][3] << endl;
+				logfile << paramnames[paramstoopt[i]] << ": " << params[paramstoopt[i]][3] << endl;
+			}
+			cout << endl;
+			logfile << endl;
+
+
+			//Calculate base error
+			vector<float> currparamlist;
+			vector<float> nmrresults;
+			vector<float> nmrnegresults;
+			vector<float> flipnmrresults;
+			vector<float> flipnmrnegresults;
+
+			for (int i = 0; i < params.size(); ++i)
+			{
+				currparamlist.push_back(params[i][3]);
+			}
+			electricFieldCalculationGradientOpt(pdbFilePath, res, params[0][3], params[1][3], params[2][3], params[6][3], params[7][3], nmrresults, nmrnegresults, flipnmrresults, flipnmrnegresults, currparamlist);
+			
+			for (int i = 0; i < nmrresults.size(); ++i)
+			{
+				cout << fluorines[i].resid << "\t" <<  nmrresults[i] << ":" << nmrnegresults[i] << ":" << flipnmrresults[i] << ":" << flipnmrnegresults[i] << endl;
+			}
+			
+			return 1;
+			vector<float> errors = { 0.0f, 0.0f, 0.0f, 0.0f };
+			float temperr = 0.0f;
+			float tempnegerr = 0.0f;
+			float tempfliperr = 0.0f;
+			float tempnegfliperr = 0.0f;
+			for (int i = 0; i < nmrresults.size(); i++)
+			{
+				errors[0] += errorfunc(nmrresults[i], correctshifts[i]);
+				errors[1] += errorfunc(nmrnegresults[i], correctshifts[i]);
+				errors[2] += errorfunc(flipnmrresults[i], correctshifts[i]);
+				errors[3] += errorfunc(flipnmrnegresults[i], correctshifts[i]);
+			}
+			errors[0] /= (float)nmrresults.size();
+			errors[1] /= (float)nmrresults.size();
+			errors[2] /= (float)nmrresults.size();
+			errors[3] /= (float)nmrresults.size();
+
+			float lasterror = *min_element(begin(errors), end(errors));
+			cout << "Initial error: " << lasterror << endl;
+			logfile << "Initial error: " << lasterror << endl;
+
+
+			float errordiff = FLT_MAX;
+			vector<string> stateflags = { "R", "N", "F", "FN" };
+			string state = "UNK";
+			int counter = 0;
+
+			//Run the paramterization
+			clock_t startTime = clock();
+			do
+			{
+				for (int i = 0; i < paramstoopt.size(); ++i)
+				{
+					cout << "Optimizing " << paramnames[paramstoopt[i]] << endl;
+					logfile << "Optimizing " << paramnames[paramstoopt[i]] << endl;
+					gradientOptFunc(pdbFilePath, res, paramstoopt[i], stepsize, lasterror, params, correctshifts, logfile);
+				}
+				//==============Utilize Optimized Parameters=====================================================================================
+				//Calculate new error
+				for (int i = 0; i < params.size(); ++i)
+				{
+					currparamlist.push_back(params[i][3]);
+				}
+				electricFieldCalculationGradientOpt(pdbFilePath, res, params[0][3], params[1][3], params[2][3], params[6][3], params[7][3], nmrresults, nmrnegresults, flipnmrresults, flipnmrnegresults, currparamlist);
+
+				errors = { 0.0f, 0.0f, 0.0f, 0.0f };
+				temperr = 0.0f;
+				tempnegerr = 0.0f;
+				tempfliperr = 0.0f;
+				tempnegfliperr = 0.0f;
+
+				for (int i = 0; i < nmrresults.size(); i++)
+				{
+					errors[0] += errorfunc(nmrresults[i], correctshifts[i]);
+					errors[1] += errorfunc(nmrnegresults[i], correctshifts[i]);
+					errors[2] += errorfunc(flipnmrresults[i], correctshifts[i]);
+					errors[3] += errorfunc(flipnmrnegresults[i], correctshifts[i]);
+				}
+				errors[0] /= (float)nmrresults.size();
+				errors[1] /= (float)nmrresults.size();
+				errors[2] /= (float)nmrresults.size();
+				errors[3] /= (float)nmrresults.size();
+
+				auto minerrorptr = min_element(begin(errors), end(errors));
+				float finalerror = *minerrorptr;
+				int pos = distance(begin(errors), minerrorptr);
+				state = stateflags[pos];
+				errordiff = abs(finalerror - lasterror);
+
+				cout << "Opt " << counter << ": " << lasterror << " => " << finalerror << " (" << errordiff << ") " << endl;
+				cout << "State: " << state << endl;
+				logfile << "Opt " << counter << ": " << lasterror << " => " << finalerror << " (" << errordiff << ") " << endl;
+				logfile << "State: " << state << endl;
+				cout << endl << endl;
+				lasterror = finalerror;
+				++counter;
+			} while ((errordiff > convergencethreshold) && (counter < maxsteps));
+
+			cout << endl << endl << endl << endl;
+			cout << "--------------------RESULTS--------------------" << endl;
+			cout << "Opt " << counter << ": " << lasterror << " (" << errordiff << ") " << endl;
+			cout << "State: " << state << endl;
+			logfile << "--------------------RESULTS--------------------" << endl;
+			logfile << "Opt " << counter << ": " << lasterror << " (" << errordiff << ") " << endl;
+			logfile << "State: " << state << endl;
+			for (int i = 0; i < paramstoopt.size(); ++i)
+			{
+				cout << paramnames[paramstoopt[i]] << ": " << params[paramstoopt[i]][3] << endl;
+				logfile << paramnames[paramstoopt[i]] << ": " << params[paramstoopt[i]][3] << endl;
+			}
+
+
+			if (lasterror < bestoptimizationerror)
+			{
+				bestoptimizationerror = lasterror;
+				cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEW BEST!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl;
+				logfile << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEW BEST!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl;
+				cout << "New shifts:" << endl;
+				logfile << "New shifts:" << endl;
+				if (state == stateflags[0])
+				{
+					for (int i = 0; i < nmrresults.size(); ++i)
+					{
+						cout << nmrresults[i] << " (" << correctshifts[i] << ")" << endl;
+						logfile << nmrresults[i] << " (" << correctshifts[i] << ")" << endl;
+					}
+				}
+				if (state == stateflags[1])
+				{
+					for (int i = 0; i < nmrnegresults.size(); ++i)
+					{
+						cout << nmrnegresults[i] << " (" << correctshifts[i] << ")" << endl;
+						logfile << nmrnegresults[i] << " (" << correctshifts[i] << ")" << endl;
+					}
+
+				}
+				if (state == stateflags[2])
+				{
+					for (int i = 0; i < flipnmrresults.size(); ++i)
+					{
+						cout << flipnmrresults[i] << " (" << correctshifts[i] << ")" << endl;
+						logfile << flipnmrresults[i] << " (" << correctshifts[i] << ")" << endl;
+					}
+
+				}
+				if (state == stateflags[3])
+				{
+					for (int i = 0; i < flipnmrnegresults.size(); ++i)
+					{
+						cout << flipnmrnegresults[i] << " (" << correctshifts[i] << ")" << endl;
+						logfile << flipnmrnegresults[i] << " (" << correctshifts[i] << ")" << endl;
+					}
+
+				}
+
+				cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEW BEST!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl;
+				logfile << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEW BEST!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl;
+			}
+
+			++gradcounter;
+		}while (gradcounter < gradientsteps);
+		cout << "DONE WITH PARAMTERIZATION!" << endl;
+
+		cin.get();
+		return 0;
+	}
+
     if (checkCmdLineFlag(argc, (const char**)argv, "parameterize"))
     {
         vector<float> correctshifts;
@@ -329,58 +670,142 @@ int main(int argc, char **argv)
         }
 
         //TESTING PARAMETERS
-        auto maxvariance = 10.0f;
-        auto minvariance = 0.01f;
-        auto stepsvariance = 100.0f;
-        auto maxref = 10.0f;
-        auto minref = 0.01f;
-        auto stepsref = 100.0f;
+        auto maxvariance = 2.5f;
+        auto minvariance = 0.1f;
+        auto stepsvariance = 120.0f;
+        auto maxref = 50.0f;
+        auto minref = 1.0f;
+        auto stepsref = 24.5f;
 
         //Calculated parameters
         auto varstep = (maxvariance - minvariance) / stepsvariance;
         auto refstep = (maxref - minref) / stepsref;
+		int totalnumsims = (stepsvariance+1.0f) * (stepsref+1.0f);
+#ifdef FULL_PARAM_LOG
+		cout << "This will generate " << (stepsref * stepsvariance * 8) << " lines.  " << endl;
+		ofstream paramlog("FullParamsReadout.txt", ofstream::out);
+		paramlog << "inDielectric\toutDielectric\tVariance\tresid\tfieldX\tfieldY\tfieldZ\tfieldTotal\tfieldRotX\tfieldRotY\tfieldRotZ\tflipfieldX\tflipfieldY\tflipfieldZ\tflipfieldTotal\tflipfieldRotX\tflipfieldRotY\tflipfieldRotZ\tgeomX\tgeomY\tgeomZ\tgeomRotX\tgeomRotY\tgeomRotZ\tflipgeomX\tflipgeomY\tflipgeomZ\tflipgeomRotX\tflipgeomRotY\tflipgeomRotZ\tfitField\tfitDielectric\tfitNMR\tfitNMRneg\tfitflipField\tfitflipDielectric\tfitflipNMR\tfitflipNMRneg" << endl;
+#endif
 
-        ofstream logfile("Parameterization.csv", ofstream::out);
-        logfile << "Parameterization results:" << endl;
-        logfile << "Row: Variance.  Column: Internal Reference" << endl;
+        ofstream paramfile("Parameterization.csv", ofstream::out);
+		paramfile << "Parameterization results:" << endl;
+		paramfile << "Row: Variance.  Column: Internal Reference" << endl;
 
         float lowerror = FLT_MAX;
+        float lowerrper = FLT_MAX;
         float bestvar = 0.0f;
         float bestref = 0.0f;
+		string sign = "UNK";
         //Print out the reference dielectric header
-        logfile << "  ,";
+		paramfile << "  ,";
         for (float ref = minref; ref <= maxref; ref += refstep)
         {
-            logfile << ref << ",";
+			paramfile << ref << ",";
         }
-        logfile << endl;
+		paramfile << endl;
         //Run the paramterization
+		clock_t startTime = clock();
+		int counter = 0;
         for (float var = minvariance; var <= maxvariance; var+=varstep)
         {
-            logfile << var << ",";
+			paramfile << var << ",";
             for (float ref = minref; ref <= maxref; ref += refstep)
             {
                 vector<float> nmrresults;
-                electricFieldCalculationSilent(deviceProp, baseatoms, fluorines, gpuatoms, weights, abscissa,
-                    ref, outDielectric, var, nmrresults);
+				vector<float> nmrnegresults;
+				vector<float> flipnmrresults;
+				vector<float> flipnmrnegresults;
+#ifdef FULL_PARAM_LOG
+				electricFieldCalculationSilentReporter(pdbFilePath, 10, ref, outDielectric, var, nmrresults, nmrnegresults, flipnmrresults, flipnmrnegresults, paramlog);
+#else
+				electricFieldCalculationSilent(pdbFilePath, 10, ref, outDielectric, var, nmrresults);
+#endif
                 float error = 0.0f;
+                float errper = 0.0f;
                 for (int i = 0; i < nmrresults.size(); i++)
                 {
-                    error += abs((nmrresults[i] - correctshifts[i]) / correctshifts[i]) * 100.0f;
+                    error += abs(nmrresults[i] - correctshifts[i]);
+                    errper += abs((nmrresults[i] - correctshifts[i]) / correctshifts[i]) * 100.0f;
                 }
                 error /= (float)nmrresults.size();
+                errper /= (float)nmrresults.size();
                 if (error < lowerror)
                 {
                     lowerror = error;
+                    lowerrper = errper;
                     bestvar = var;
                     bestref = ref;
+					sign = "POS";
                 }
+
+				float errorneg = 0.0f;
+                float errperneg = 0.0f;
+				for (int i = 0; i < nmrnegresults.size(); i++)
+				{
+					errorneg += abs(nmrnegresults[i] - correctshifts[i]);
+                    errperneg += abs((nmrnegresults[i] - correctshifts[i]) / correctshifts[i]) * 100.0f;
+				}
+				errorneg /= (float)nmrnegresults.size();
+                errperneg /= (float)nmrnegresults.size();
+				if (errorneg < lowerror)
+				{
+					lowerror = errorneg;
+                    lowerrper = errperneg;
+					bestvar = var;
+					bestref = ref;
+					sign = "NEG";
+				}
+
+
+				float fliperror = 0.0f;
+                float fliperrper = 0.0f;
+				for (int i = 0; i < flipnmrresults.size(); i++)
+				{
+					fliperror += abs(flipnmrresults[i] - correctshifts[i]);
+                    fliperrper += abs((flipnmrresults[i] - correctshifts[i]) / correctshifts[i]) * 100.0f;
+				}
+				fliperror /= (float)flipnmrresults.size();
+				fliperrper /= (float)flipnmrresults.size();
+				if (fliperror < lowerror)
+				{
+                    lowerrper = fliperrper;
+					lowerror = fliperror;
+					bestvar = var;
+					bestref = ref;
+					sign = "FLIP-POS";
+				}
+
+				float fliperrorneg = 0.0f;
+				float fliperrperneg = 0.0f;
+				for (int i = 0; i < flipnmrnegresults.size(); i++)
+				{
+					fliperrorneg += abs(flipnmrnegresults[i] - correctshifts[i]);
+                    fliperrperneg += abs((flipnmrnegresults[i] - correctshifts[i]) / correctshifts[i]) * 100.0f;
+				}
+				fliperrorneg /= (float)flipnmrnegresults.size();
+				fliperrperneg /= (float)flipnmrnegresults.size();
+				if (fliperrorneg < lowerror)
+				{
+                    lowerrper = fliperrperneg;
+					lowerror = fliperrorneg;
+					bestvar = var;
+					bestref = ref;
+					sign = "FLIP-NEG";
+				}
+
+
                 cout << endl;
-                cout << "Error: " << error << "%\tRef: " << ref << "\tVar: " << var << endl;
-                cout << "Best error: " << lowerror << "%\tRef: " << bestref << "\tVar: " << bestvar << endl;
-                logfile << error << ",";
+                cout << "Error: " << error << " | " << fliperror << " ppm\tRef: " << ref << "\tVar: " << var << endl;
+				cout << "ErrorNeg: " << errorneg << " | " << fliperrorneg << " ppm\tRef: " << ref << "\tVar: " << var << endl;
+                cout << "Best error: " << lowerror << " ppm (" << lowerrper << ")\tRef: " << bestref << "\tVar: " << bestvar << "\tFlag: " << sign << endl;
+				++counter;
+				auto elapsedtime = ((clock() - startTime) / ((double)CLOCKS_PER_SEC));
+				auto remaining = ((double)totalnumsims - (double)counter) * (elapsedtime / (double)counter);
+				cout << "Time remaining: (" << counter << "/" << totalnumsims << "): " << remaining << endl;
+
+				paramfile << error << ",";
             }
-            logfile << endl;
+			paramfile << endl;
         }
         cout << "DONE WITH PARAMTERIZATION!" << endl;
         cout << "Best results- Ref:" << bestref << "\tVar:" << bestvar << endl;
@@ -489,9 +914,12 @@ int main(int argc, char **argv)
         }
 
         // this nonsense calculates how much we can do at a time for 45% of the memory
-        size_t nGpuGridPointBase = floor((cudaFreeMem * 0.45f - (nAtoms * sizeof(GPUAtom))) / ((nAtoms * sizeof(float)) + sizeof(GridPoint)));
-        int itersReq = round(imgSizeSq / nGpuGridPointBase + 0.5f); // pull some computer math bs to make this work
-        auto gridPoints = new GridPoint[imgSizeSq];
+        size_t nGpuGridPointBase;
+        nGpuGridPointBase = floor((cudaFreeMem * 0.45f - (nAtoms * sizeof(GPUAtom))) / ((nAtoms * sizeof(float)) + sizeof(GridPoint)));
+        int itersReq;
+        itersReq = round(imgSizeSq / nGpuGridPointBase + 0.5f); // pull some computer math bs to make this work
+        GridPoint* gridPoints;
+        gridPoints = new GridPoint[imgSizeSq];
 
         // start a new gif writer
         GifWriter gifWriter;

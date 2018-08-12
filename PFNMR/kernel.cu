@@ -26,6 +26,7 @@
 #include <locale>
 #include <tuple>
 #include <math.h>
+#include <float.h>
 
 #include "kernel.cuh"
 #include "GPUTypes.h"
@@ -102,40 +103,58 @@ cudaError_t sliceDensityCuda(float *out, const GPUAtom *inAtoms, const GridPoint
     cudaError_t cudaStatus;
 
 	// find the most effective dimensions for our calculations
-	int blockDim = sqrt(deviceProp.maxThreadsPerBlock);
-	auto blockSize = dim3(blockDim, blockDim);
-	auto gridSize = dim3(round((blockDim - 1 + nGridPoints) / blockDim), round((blockDim - 1 + nAtoms) / blockDim));
+	int blockDim;
+    blockDim = sqrt(deviceProp.maxThreadsPerBlock);
+	dim3 blockSize;
+    blockSize = dim3(blockDim, blockDim);
+	dim3 gridSize;
+    gridSize = dim3(round((blockDim - 1 + nGridPoints) / blockDim), round((blockDim - 1 + nAtoms) / blockDim));
 
     // Allocate GPU buffers for vectors.
     cudaStatus = cudaMalloc((void**)&dev_out, nAtoms * nGridPoints * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_atom, nAtoms * sizeof(GPUAtom));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_grid, nGridPoints * sizeof(GPUAtom));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy input vectors from host memory to GPU buffers.
     cudaStatus = cudaMemcpy(dev_atom, inAtoms, nAtoms * sizeof(GPUAtom), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMemcpy(dev_grid, inGrid, nGridPoints * sizeof(GridPoint), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Launch a kernel on the GPU.
@@ -145,7 +164,10 @@ cudaError_t sliceDensityCuda(float *out, const GPUAtom *inAtoms, const GridPoint
     cudaStatus = cudaGetLastError();
     if (cudaStatus != cudaSuccess) {
         cerr << "density kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
@@ -154,22 +176,26 @@ cudaError_t sliceDensityCuda(float *out, const GPUAtom *inAtoms, const GridPoint
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching density kernel!" << endl;
         cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(out, dev_out, nAtoms * nGridPoints * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // clear all our device arrays
-Error:
     cudaFree(dev_atom);
     cudaFree(dev_grid);
     cudaFree(dev_out);
-
     return cudaStatus;
 }
 
@@ -198,20 +224,26 @@ cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDiel
     cudaStatus = cudaMalloc((void**)&dev_out, nGridPoints * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_in);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_in, nAtoms * nGridPoints * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_in);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy input vectors from host memory to GPU buffers.
     cudaStatus = cudaMemcpy(dev_in, in, nAtoms * nGridPoints * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_in);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Launch a kernel on the GPU.
@@ -221,7 +253,9 @@ cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDiel
     cudaStatus = cudaGetLastError();
     if (cudaStatus != cudaSuccess) {
         cerr << "dielectric kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
-        goto Error;
+        cudaFree(dev_in);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
@@ -230,21 +264,23 @@ cudaError_t sliceDielectricCuda(float *out, const float *in, const float refDiel
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching density kernel!" << endl;
         cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
-        goto Error;
+        cudaFree(dev_in);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(out, dev_out, nGridPoints * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_in);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // delete all our device arrays
-Error:
     cudaFree(dev_in);
     cudaFree(dev_out);
-
     return cudaStatus;
 }
 
@@ -259,40 +295,58 @@ cudaError_t sliceDensityCudaIR(float *out, const GPUAtom *inAtoms, const GridPoi
     cudaError_t cudaStatus;
 
     // find the most effective dimensions for our calculations
-    int blockDim = sqrt(deviceProp.maxThreadsPerBlock);
-    auto blockSize = dim3(blockDim, blockDim);
-    auto gridSize = dim3(round((blockDim - 1 + nGridPoints) / blockDim), round((blockDim - 1 + nAtoms) / blockDim));
+    int blockDim;
+    blockDim = sqrt(deviceProp.maxThreadsPerBlock);
+    dim3 blockSize;
+    blockSize = dim3(blockDim, blockDim);
+    dim3 gridSize;
+    gridSize = dim3(round((blockDim - 1 + nGridPoints) / blockDim), round((blockDim - 1 + nAtoms) / blockDim));
 
     // Allocate GPU buffers for vectors.
     cudaStatus = cudaMalloc((void**)&dev_out, nAtoms * nGridPoints * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_atom, nAtoms * sizeof(GPUAtom));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_grid, nGridPoints * sizeof(GPUAtom));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy input vectors from host memory to GPU buffers.
     cudaStatus = cudaMemcpy(dev_atom, inAtoms, nAtoms * sizeof(GPUAtom), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMemcpy(dev_grid, inGrid, nGridPoints * sizeof(GridPoint), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Launch a kernel on the GPU.
@@ -302,7 +356,10 @@ cudaError_t sliceDensityCudaIR(float *out, const GPUAtom *inAtoms, const GridPoi
     cudaStatus = cudaGetLastError();
     if (cudaStatus != cudaSuccess) {
         cerr << "density kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
@@ -311,22 +368,26 @@ cudaError_t sliceDensityCudaIR(float *out, const GPUAtom *inAtoms, const GridPoi
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching density kernel!" << endl;
         cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(out, dev_out, nAtoms * nGridPoints * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_grid);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // clear all our device arrays
-Error:
     cudaFree(dev_atom);
     cudaFree(dev_grid);
     cudaFree(dev_out);
-
     return cudaStatus;
 }
 
@@ -446,6 +507,47 @@ __global__ void electricFieldComponentKernel(GPUEFP *out, const float *inEffLeng
     }
 }
 
+__global__ void electricFieldComponentGradOptKernel(GPUEFP *out, const float *inEffLengths, const GPUChargeAtom *inAtoms, const float coulconst, const float powvar, const float multvar, const size_t nEFPs, const size_t nAtoms)
+{
+	int j = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (j < nEFPs)
+	{
+		float fieldx = 0.0f;
+		float fieldy = 0.0f;
+		float fieldz = 0.0f;
+		for (int i = 0; i < nAtoms; i++)
+		{
+			if (inAtoms[i].resid != out[j].resid || inAtoms[i].chainid != out[j].chainid) //Ignore all atoms in residue (These are handles quantum mechanically)
+			{
+				//Get distance parameters
+				float diffx = inAtoms[i].x - out[j].x;
+				if (diffx == 0.0)
+					diffx = FLT_EPSILON;
+				float diffy = inAtoms[i].y - out[j].y;
+				float diffz = inAtoms[i].z - out[j].z;
+				float distance = sqrtf((diffx * diffx) + (diffy * diffy) + (diffz * diffz));
+
+				//Get orientation parameters
+				float compdist = pow(inEffLengths[(j*nAtoms) + i], powvar) * multvar;
+				float Etot = (inAtoms[i].charge * coulconst) / (compdist * compdist);
+				float theta = asinf(diffy / distance);
+				float phi = atanf(diffz / diffx);
+				if (diffx < 0.0f)
+					phi += M_PI;
+
+				//Calculate and add the field components
+				fieldx += Etot * cosf(theta) * cosf(phi);
+				fieldy += Etot * sinf(theta);
+				fieldz += Etot * cosf(theta) * sinf(phi);
+			}
+		}
+		out[j].fieldx = fieldx;
+		out[j].fieldy = fieldy;
+		out[j].fieldz = fieldz;
+	}
+}
+
 __global__ void electricFieldComponentKernel(float *out, const float *inEffLengths, const GPUChargeAtom *inAtoms, const float coulconst, const size_t nEFPs, const size_t nAtoms)
 {
     int j = blockIdx.x * blockDim.x + threadIdx.x;
@@ -476,38 +578,56 @@ cudaError_t eFieldDensityCuda(float *out, float *xspans, const GPUChargeAtom *in
     cudaStatus = cudaMalloc((void**)&dev_out, resopsperiter * nAtoms * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_xspans, nAtoms * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_atom, nAtoms * sizeof(GPUChargeAtom));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy input vectors from host memory to GPU buffers.
     cudaStatus = cudaMemcpy(dev_atom, inAtoms, nAtoms * sizeof(GPUChargeAtom), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMemcpy(dev_xspans, xspans, nAtoms * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // find the most effective dimensions for our calculations
-    int blockDim = sqrt(deviceProp.maxThreadsPerBlock);
-    auto blockSize = dim3(blockDim, blockDim);
-    auto gridSize = dim3(round((blockDim - 1 + resopsperiter) / blockDim), round((blockDim - 1 + nAtoms) / blockDim));
+    int blockDim;
+    blockDim = sqrt(deviceProp.maxThreadsPerBlock);
+    dim3 blockSize;
+    blockSize = dim3(blockDim, blockDim);
+    dim3 gridSize;
+    gridSize = dim3(round((blockDim - 1 + resopsperiter) / blockDim), round((blockDim - 1 + nAtoms) / blockDim));
 
     // Launch a kernel on the GPU.
     eFieldDensityKernel << <gridSize, blockSize >> > (dev_out, dev_xspans, dev_atom, efp, variance, offset, resopsperiter, nAtoms, resolution);
@@ -515,7 +635,10 @@ cudaError_t eFieldDensityCuda(float *out, float *xspans, const GPUChargeAtom *in
     cudaStatus = cudaGetLastError();
     if (cudaStatus != cudaSuccess) {
         cerr << "density kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
@@ -524,28 +647,35 @@ cudaError_t eFieldDensityCuda(float *out, float *xspans, const GPUChargeAtom *in
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching density kernel!" << endl;
         cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(out, dev_out, nAtoms * resopsperiter * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMemcpy(xspans, dev_xspans, nAtoms * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // clear all our device arrays
-Error:
     cudaFree(dev_atom);
     cudaFree(dev_EFP);
     cudaFree(dev_out);
-
     return cudaStatus;
 }
 
@@ -562,26 +692,34 @@ cudaError_t eFieldDielectricCuda(float *out, const float *inDensity, const float
     cudaStatus = cudaMalloc((void**)&dev_out, resolution * nAtoms * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_in);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_in, nAtoms * resopsperiter * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_in);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy input vectors from host memory to GPU buffers.
     cudaStatus = cudaMemcpy(dev_in, inDensity, nAtoms * resopsperiter * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_in);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMemcpy(dev_out, out, nAtoms * resolution * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_in);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // use div because it's more accurrate than the rounding BS
@@ -603,7 +741,9 @@ cudaError_t eFieldDielectricCuda(float *out, const float *inDensity, const float
     cudaStatus = cudaGetLastError();
     if (cudaStatus != cudaSuccess) {
         cerr << "dielectric kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
-        goto Error;
+        cudaFree(dev_in);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
@@ -612,21 +752,23 @@ cudaError_t eFieldDielectricCuda(float *out, const float *inDensity, const float
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching dielectric kernel!" << endl;
         cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
-        goto Error;
+        cudaFree(dev_in);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(out, dev_out, nAtoms * resolution * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_in);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // delete all our device arrays
-Error:
     cudaFree(dev_in);
     cudaFree(dev_out);
-
     return cudaStatus;
 }
 
@@ -643,32 +785,47 @@ cudaError_t trapIntegrationCuda(float *out, const float *inXSpans, const float *
     cudaStatus = cudaMalloc((void**)&dev_out, nStrips * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_inXSpans, nStrips * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_inY, nStrips * nPoints * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy input vectors from host memory to GPU buffers.
     cudaStatus = cudaMemcpy(dev_inXSpans, inXSpans, nStrips * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMemcpy(dev_inY, inY, nStrips * nPoints * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // use div because it's more accurrate than the rounding BS
@@ -690,7 +847,10 @@ cudaError_t trapIntegrationCuda(float *out, const float *inXSpans, const float *
     cudaStatus = cudaGetLastError();
     if (cudaStatus != cudaSuccess) {
         cerr << "trapezoid integration kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
-        goto Error;
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
@@ -699,22 +859,26 @@ cudaError_t trapIntegrationCuda(float *out, const float *inXSpans, const float *
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching trapezoid integration kernel!" << endl;
         cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
-        goto Error;
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(out, dev_out, nStrips * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // delete all our device arrays
-Error:
     cudaFree(dev_inXSpans);
     cudaFree(dev_inY);
     cudaFree(dev_out);
-
     return cudaStatus;
 }
 
@@ -728,20 +892,25 @@ cudaError_t sqrtf2DCuda(float *out, const size_t nX, const size_t nY, cudaDevice
     cudaStatus = cudaMalloc((void**)&dev_out, nX * nY * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy input vectors from host memory to GPU buffers.
     cudaStatus = cudaMemcpy(dev_out, out, nX * nY * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // find the most effective dimensions for our calculations
-    int blockDim = sqrt(deviceProp.maxThreadsPerBlock);
-    auto blockSize = dim3(blockDim, blockDim);
-    auto gridSize = dim3(round((blockDim - 1 + nX) / blockDim), round((blockDim - 1 + nY) / blockDim));
+    int blockDim;
+    blockDim = sqrt(deviceProp.maxThreadsPerBlock);
+    dim3 blockSize;
+    blockSize = dim3(blockDim, blockDim);
+    dim3 gridSize;
+    gridSize = dim3(round((blockDim - 1 + nX) / blockDim), round((blockDim - 1 + nY) / blockDim));
 
     // Launch a kernel on the GPU.
     sqrtf2DKernel << <gridSize, blockSize >> > (dev_out, nX, nY);
@@ -749,7 +918,8 @@ cudaError_t sqrtf2DCuda(float *out, const size_t nX, const size_t nY, cudaDevice
     cudaStatus = cudaGetLastError();
     if (cudaStatus != cudaSuccess) {
         cerr << "sqrtf2D kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
@@ -758,20 +928,20 @@ cudaError_t sqrtf2DCuda(float *out, const size_t nX, const size_t nY, cudaDevice
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching sqrtf2D kernel!" << endl;
         cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(out, dev_out, nX * nY * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // clear all our device arrays
-Error:
     cudaFree(dev_out);
-
     return cudaStatus;
 }
 
@@ -788,38 +958,44 @@ cudaError_t electricFieldComponentCuda(GPUEFP *out, const float *inEffLengths, c
     cudaStatus = cudaMalloc((void**)&dev_out, nEFPs * sizeof(GPUEFP));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_inEffLengths, nAtoms * nEFPs * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_inAtoms, nAtoms * sizeof(GPUChargeAtom));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy input vectors from host memory to GPU buffers.
     cudaStatus = cudaMemcpy(dev_out, out, nEFPs * sizeof(GPUEFP), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMemcpy(dev_inEffLengths, inEffLengths, nAtoms * nEFPs * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMemcpy(dev_inAtoms, inAtoms, nAtoms * sizeof(GPUChargeAtom), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // find the most effective dimensions for our calculations
@@ -841,7 +1017,8 @@ cudaError_t electricFieldComponentCuda(GPUEFP *out, const float *inEffLengths, c
     cudaStatus = cudaGetLastError();
     if (cudaStatus != cudaSuccess) {
         cerr << "electric field component kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
@@ -850,21 +1027,120 @@ cudaError_t electricFieldComponentCuda(GPUEFP *out, const float *inEffLengths, c
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching electric field component kernel!" << endl;
         cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(out, dev_out, nEFPs * sizeof(GPUEFP), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // clear all our device arrays
-Error:
     cudaFree(dev_out);
-
     return cudaStatus;
+}
+
+cudaError_t electricFieldComponentGradOptCuda(GPUEFP *out, const float *inEffLengths, const GPUChargeAtom *inAtoms,
+	const float coulconst, const float powvar, const float multvar, const size_t nEFPs, const size_t nAtoms, cudaDeviceProp &deviceProp)
+{
+	// define device arrays
+	GPUEFP *dev_out = 0;
+	float *dev_inEffLengths = 0;
+	GPUChargeAtom *dev_inAtoms = 0;
+	cudaError_t cudaStatus;
+
+	// Allocate GPU buffers for vectors.
+	cudaStatus = cudaMalloc((void**)&dev_out, nEFPs * sizeof(GPUEFP));
+	if (cudaStatus != cudaSuccess) {
+		cerr << "cudaMalloc failed!" << endl;
+		cudaFree(dev_out);
+		return cudaStatus;
+	}
+
+	cudaStatus = cudaMalloc((void**)&dev_inEffLengths, nAtoms * nEFPs * sizeof(float));
+	if (cudaStatus != cudaSuccess) {
+		cerr << "cudaMalloc failed!" << endl;
+		cudaFree(dev_out);
+		return cudaStatus;
+	}
+
+	cudaStatus = cudaMalloc((void**)&dev_inAtoms, nAtoms * sizeof(GPUChargeAtom));
+	if (cudaStatus != cudaSuccess) {
+		cerr << "cudaMalloc failed!" << endl;
+		cudaFree(dev_out);
+		return cudaStatus;
+	}
+
+	// Copy input vectors from host memory to GPU buffers.
+	cudaStatus = cudaMemcpy(dev_out, out, nEFPs * sizeof(GPUEFP), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		cerr << "cudaMemcpy failed!" << endl;
+		cudaFree(dev_out);
+		return cudaStatus;
+	}
+
+	cudaStatus = cudaMemcpy(dev_inEffLengths, inEffLengths, nAtoms * nEFPs * sizeof(float), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		cerr << "cudaMemcpy failed!" << endl;
+		cudaFree(dev_out);
+		return cudaStatus;
+	}
+
+	cudaStatus = cudaMemcpy(dev_inAtoms, inAtoms, nAtoms * sizeof(GPUChargeAtom), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		cerr << "cudaMemcpy failed!" << endl;
+		cudaFree(dev_out);
+		return cudaStatus;
+	}
+
+	// find the most effective dimensions for our calculations
+	// use div because it's more accurrate than the rounding BS
+	auto gridDiv = div(nEFPs, deviceProp.maxThreadsPerBlock);
+	auto gridY = gridDiv.quot;
+
+	// ass backwards way of rounding up (maybe use the same trick as above? It might be "faster")
+	if (gridDiv.rem != 0)
+		gridY++;
+
+	// find the block and grid size
+	auto blockSize = deviceProp.maxThreadsPerBlock;
+	int gridSize = min(16 * deviceProp.multiProcessorCount, gridY);
+
+	// Launch a kernel on the GPU.
+	electricFieldComponentGradOptKernel << <gridSize, blockSize >> > (dev_out, dev_inEffLengths, dev_inAtoms, coulconst, powvar, multvar, nEFPs, nAtoms);
+	// Check for any errors launching the kernel
+	cudaStatus = cudaGetLastError();
+	if (cudaStatus != cudaSuccess) {
+		cerr << "electric field component kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
+		cudaFree(dev_out);
+		return cudaStatus;
+	}
+
+	// cudaDeviceSynchronize waits for the kernel to finish, and returns
+	// any errors encountered during the launch.
+	cudaStatus = cudaDeviceSynchronize();
+	if (cudaStatus != cudaSuccess) {
+		cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching electric field component kernel!" << endl;
+		cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
+		cudaFree(dev_out);
+		return cudaStatus;
+	}
+
+	// Copy output vector from GPU buffer to host memory.
+	cudaStatus = cudaMemcpy(out, dev_out, nEFPs * sizeof(GPUEFP), cudaMemcpyDeviceToHost);
+	if (cudaStatus != cudaSuccess) {
+		cerr << "cudaMemcpy failed!" << endl;
+		cudaFree(dev_out);
+		return cudaStatus;
+	}
+
+	// clear all our device arrays
+	cudaFree(dev_out);
+	return cudaStatus;
 }
 
 cudaError_t electricPotentialCuda(float *out, const float *inEffLengths, const GPUChargeAtom *inAtoms,
@@ -880,38 +1156,44 @@ cudaError_t electricPotentialCuda(float *out, const float *inEffLengths, const G
     cudaStatus = cudaMalloc((void**)&dev_out, nEFPs * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_inEffLengths, nAtoms * nEFPs * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_inAtoms, nAtoms * sizeof(GPUChargeAtom));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy input vectors from host memory to GPU buffers.
     cudaStatus = cudaMemcpy(dev_out, out, nEFPs * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMemcpy(dev_inEffLengths, inEffLengths, nAtoms * nEFPs * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMemcpy(dev_inAtoms, inAtoms, nAtoms * sizeof(GPUChargeAtom), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // find the most effective dimensions for our calculations
@@ -933,7 +1215,8 @@ cudaError_t electricPotentialCuda(float *out, const float *inEffLengths, const G
     cudaStatus = cudaGetLastError();
     if (cudaStatus != cudaSuccess) {
         cerr << "electric field component kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
@@ -942,20 +1225,20 @@ cudaError_t electricPotentialCuda(float *out, const float *inEffLengths, const G
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching electric field component kernel!" << endl;
         cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(out, dev_out, nEFPs * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // clear all our device arrays
-Error:
     cudaFree(dev_out);
-
     return cudaStatus;
 }
 
@@ -1002,7 +1285,8 @@ __global__ void gaussQuadIntegrationKernel(float *out, const float *inXSpans, co
         {
             value += inWeights[j] * inY[(j * nStrips) + i];
         }
-        out[i] = inXSpans[i] * value;
+	//PARAMFLAG
+        out[i] = pow(inXSpans[i] * value, 1.1f) * 0.95f;
     }
 }
 
@@ -1022,25 +1306,45 @@ cudaError_t eFieldDensityGQCuda(float *out, float *xspans, const GPUChargeAtom *
     cudaStatus = cudaMalloc((void**)&dev_out, resopsperiter * nAtoms * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_absci);
+        cudaFree(dev_xspans);
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_xspans, nAtoms * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_absci);
+        cudaFree(dev_xspans);
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_atom, nAtoms * sizeof(GPUChargeAtom));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_absci);
+        cudaFree(dev_xspans);
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_absci, resolution * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_absci);
+        cudaFree(dev_xspans);
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
 
@@ -1048,26 +1352,44 @@ cudaError_t eFieldDensityGQCuda(float *out, float *xspans, const GPUChargeAtom *
     cudaStatus = cudaMemcpy(dev_atom, inAtoms, nAtoms * sizeof(GPUChargeAtom), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_absci);
+        cudaFree(dev_xspans);
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMemcpy(dev_xspans, xspans, nAtoms * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_absci);
+        cudaFree(dev_xspans);
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
 
     cudaStatus = cudaMemcpy(dev_absci, inAbsci, resolution * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_absci);
+        cudaFree(dev_xspans);
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // find the most effective dimensions for our calculations
-    int blockDim = sqrt(deviceProp.maxThreadsPerBlock);
-    auto blockSize = dim3(blockDim, blockDim);
-    auto gridSize = dim3(round((blockDim - 1 + resopsperiter) / blockDim), round((blockDim - 1 + nAtoms) / blockDim));
+    int blockDim;
+    blockDim = sqrt(deviceProp.maxThreadsPerBlock);
+    dim3 blockSize;
+    blockSize = dim3(blockDim, blockDim);
+    dim3 gridSize;
+    gridSize= dim3(round((blockDim - 1 + resopsperiter) / blockDim), round((blockDim - 1 + nAtoms) / blockDim));
 
     // Launch a kernel on the GPU.
     eFieldDensityGQKernel << <gridSize, blockSize >> > (dev_out, dev_xspans, dev_atom, dev_absci, efp, variance, offset, resopsperiter, nAtoms, resolution);
@@ -1075,7 +1397,12 @@ cudaError_t eFieldDensityGQCuda(float *out, float *xspans, const GPUChargeAtom *
     cudaStatus = cudaGetLastError();
     if (cudaStatus != cudaSuccess) {
         cerr << "density kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
-        goto Error;
+        cudaFree(dev_absci);
+        cudaFree(dev_xspans);
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
@@ -1084,30 +1411,43 @@ cudaError_t eFieldDensityGQCuda(float *out, float *xspans, const GPUChargeAtom *
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching density kernel!" << endl;
         cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
-        goto Error;
+        cudaFree(dev_absci);
+        cudaFree(dev_xspans);
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(out, dev_out, nAtoms * resopsperiter * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_absci);
+        cudaFree(dev_xspans);
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMemcpy(xspans, dev_xspans, nAtoms * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_absci);
+        cudaFree(dev_xspans);
+        cudaFree(dev_atom);
+        cudaFree(dev_EFP);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // clear all our device arrays
-Error:
     cudaFree(dev_absci);
     cudaFree(dev_xspans);
     cudaFree(dev_atom);
     cudaFree(dev_EFP);
     cudaFree(dev_out);
-
     return cudaStatus;
 }
 
@@ -1125,44 +1465,72 @@ cudaError_t gaussQuadIntegrationCuda(float *out, const float *inXSpans, const fl
     cudaStatus = cudaMalloc((void**)&dev_out, nStrips * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_inWeights);
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_inWeights, nPoints * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_inWeights);
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_inXSpans, nStrips * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_inWeights);
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMalloc((void**)&dev_inY, nStrips * nPoints * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMalloc failed!" << endl;
-        goto Error;
+        cudaFree(dev_inWeights);
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy input vectors from host memory to GPU buffers.
     cudaStatus = cudaMemcpy(dev_inXSpans, inXSpans, nStrips * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_inWeights);
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMemcpy(dev_inWeights, inWeights, nPoints * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_inWeights);
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     cudaStatus = cudaMemcpy(dev_inY, inY, nStrips * nPoints * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_inWeights);
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // use div because it's more accurrate than the rounding BS
@@ -1184,7 +1552,11 @@ cudaError_t gaussQuadIntegrationCuda(float *out, const float *inXSpans, const fl
     cudaStatus = cudaGetLastError();
     if (cudaStatus != cudaSuccess) {
         cerr << "trapezoid integration kernel launch failed: " << cudaGetErrorString(cudaStatus) << endl;
-        goto Error;
+        cudaFree(dev_inWeights);
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // cudaDeviceSynchronize waits for the kernel to finish, and returns
@@ -1193,22 +1565,28 @@ cudaError_t gaussQuadIntegrationCuda(float *out, const float *inXSpans, const fl
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaDeviceSynchronize returned error code " << cudaStatus << " after launching trapezoid integration kernel!" << endl;
         cout << "Cuda failure " << __FILE__ << ":" << __LINE__ << " '" << cudaGetErrorString(cudaStatus);
-        goto Error;
+        cudaFree(dev_inWeights);
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(out, dev_out, nStrips * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
         cerr << "cudaMemcpy failed!" << endl;
-        goto Error;
+        cudaFree(dev_inWeights);
+        cudaFree(dev_inXSpans);
+        cudaFree(dev_inY);
+        cudaFree(dev_out);
+        return cudaStatus;
     }
 
     // delete all our device arrays
-Error:
     cudaFree(dev_inWeights);
     cudaFree(dev_inXSpans);
     cudaFree(dev_inY);
     cudaFree(dev_out);
-
     return cudaStatus;
 }

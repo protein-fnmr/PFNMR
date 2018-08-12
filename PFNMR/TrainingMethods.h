@@ -17,5 +17,11 @@
 #define __TRAININGMETHODS_H
 
 #include <vector>
-void electricFieldCalculationSilent(cudaDeviceProp deviceProp, vector<Atom> & baseatoms, vector<GPUEFP> & fluorines, vector<GPUChargeAtom> & gpuatoms, vector<float> & weights, vector<float> & abscissa, const float inDielectric, const float outDielectric, const float variance, vector<float> & output);
+int electricFieldCalculationSilent(string pdbPath, const int res, const float inDielectric, const float outDielectric, const float variance, vector<float> & output);
+int electricFieldCalculationSilentReporter(string pdbPath, const int res, const float inDielectric, const float outDielectric, const float variance, vector<float> & output, vector<float> & outputneg, vector<float> & flipoutput, vector<float> & flipoutputneg, ofstream & report);
+int electricFieldCalculationGradientOpt(string pdbPath, const int res, const float inDielectric, const float outDielectric, const float variance, const float powvar, const float multvar, vector<float> & output, vector<float> & outputneg, vector<float> & flipoutput, vector<float> & flipoutputneg, vector<float> parameters);
+void gradientOptFunc(string pdbFilePath, int res, int optparam, float stepsize, float lasterror, vector<vector<float>> & parameters, vector<float> correctshifts, ofstream & logfile);
+float errorfunc(float calculated, float correct);
+float rounderhelper(float x, float step);
+
 #endif

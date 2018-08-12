@@ -56,4 +56,7 @@ cudaError_t eFieldDensityGQCuda(float *out, float *xspans, const GPUChargeAtom *
 cudaError_t gaussQuadIntegrationCuda(float *out, const float *inXSpans, const float *inY, const float *inWeights, const size_t nStrips,
     const size_t nPoints, cudaDeviceProp &deviceProp);
 
+cudaError_t electricFieldComponentGradOptCuda(GPUEFP *out, const float *inEffLengths, const GPUChargeAtom *inAtoms,
+	const float coulconst, const float powvar, const float multvar, const size_t nEFPs, const size_t nAtoms, cudaDeviceProp &deviceProp);
+
 #endif

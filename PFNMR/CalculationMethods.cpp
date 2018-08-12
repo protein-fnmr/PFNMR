@@ -13,6 +13,8 @@
 //      You should have received a copy of the GNU General Public License
 //      along with this program.If not, see <http://www.gnu.org/licenses/>.
 
+//#define OUTPUT_LOG
+
 #define _USE_MATH_DEFINES
 
 #define NUM_SPHERE_POINTS   10000
@@ -23,6 +25,7 @@
 #include <ctime>
 #include <fstream>
 #include <math.h>
+#include <float.h>
 
 #include "kernel.cuh"
 
@@ -30,11 +33,10 @@
 #include "CalculationMethods.h"
 #include "CSVReader.h"
 #include "PDBProcessor.h"
-#include "PFDProcessor.h"
+//#include "PFDProcessor.h"
 
 using namespace std;
 
-void rotateResidueToXField(vector<float> & fieldVect, vector<Atom> residue);
 
 vector<float> crossprod(vector<float> & a, vector<float> & b)
 {
@@ -47,17 +49,7 @@ vector<float> crossprod(vector<float> & a, vector<float> & b)
 
 float pheNMR(float x, float y, float z, float d, float w)
 {
-    //Average parameters from Monte Carlo fitting
-    //auto a = 0.0f;  //-116.58f;
-    //auto b = 0.009077721f;
-    //auto c = 0.101656497f;
-    //auto d = 0.01746456f;
-
-    //Old method without dielectric information
-    //return a + (b*field) - (c * field * cosf((d * y) - (d*z))) - (c * field * cosf((d * z) + (d*y)));
-
-    //Super specific method (with dielectric)
-    return (0.00478f * w) + ((5.8f + (0.0457f * w * cosf(0.0175f * y) * cosf(0.0175f * z))) / d) + (0.0457f * w * cosf(0.0175f * z) * cosf(0.0175f * z) * sinf(0.00478f * w * cosf(0.0175f * y))) - (0.203f * w * cosf(0.0175f * y) * cosf(0.0175f * z));
+	return (5.579f / d) - (0.2069f * w * cosf(0.01745f * y) * cos(0.01745f * z));
 }
 
 void getGaussQuadSetup(int points, vector<float> & outWeights, vector<float> & outAbscissa)
@@ -131,6 +123,7 @@ void getGaussQuadSetup(int points, vector<float> & outWeights, vector<float> & o
     }
 }
 
+/* TODO: REMOVE THIS (FOR IO COMPILES)
 int createDielectricPFDFile(string outpfdpath, string pdbFilePath, string colorcsvpath, int nSlices, int imgSize, float outDielectric, float inDielectric, float relVariance)
 {
     int imgSizeSq = imgSize * imgSize;
@@ -362,7 +355,7 @@ int createDielectricPFDFile(string outpfdpath, string pdbFilePath, string colorc
                 }
             }
             writeDielectricFrameData(&pfd, image, planedims, imgSize);
-            */
+            
             delete[] image;
         }
 
@@ -555,7 +548,7 @@ int oldElectricFieldCalculation(string pdbPath, const float lineresolution, cons
     cin.get();
     return 0;
 }
-
+*/
 int electricFieldCalculation(string pdbPath, const int res, const float inDielectric, const float outDielectric, const float variance, vector<float> & output)
 {
     clock_t startTime = clock();
@@ -633,20 +626,27 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
         }
 
         // Calculate available memory
-        auto memdielectricmatrix = (actres * nAtoms * sizeof(float));
-        size_t freemem = (cudaFreeMem * 0.10f) - (nAtoms * sizeof(GPUChargeAtom)) - (nFluorines * sizeof(GPUEFP)) - memdielectricmatrix - (2 * nAtoms * sizeof(float));
+        unsigned long long memdielectricmatrix;
+        memdielectricmatrix = (actres * nAtoms * sizeof(float));
+        size_t freemem;
+        freemem = (cudaFreeMem * 0.10f) - (nAtoms * sizeof(GPUChargeAtom)) - (nFluorines * sizeof(GPUEFP)) - memdielectricmatrix - (2 * nAtoms * sizeof(float));
         if (freemem < 0)
         {
             cout << "Error: Not enough memory for this calculation!" << endl;
             return 1;
         }
-        int slicesperiter = floor(freemem / memdielectricmatrix);
-        int iterReq = round(nAtoms / slicesperiter + 0.5f);
-        int resopsperiter = slicesperiter * actres;
+        int slicesperiter;
+        slicesperiter = floor(freemem / memdielectricmatrix);
+        int iterReq;
+        iterReq = round(nAtoms / slicesperiter + 0.5f);
+        int resopsperiter;
+        resopsperiter = slicesperiter * actres;
 
         //Start doing the actual analysis using the Effective Length method for the non-uniform dielectric
-        auto integralMatrix = new float[nAtoms * nFluorines];
-        auto alpha = (((2.99792458f * 2.99792458f) * 1.602176487f) / (5.142206f)) * 0.1f; //Conversion factor to make calculation spit out voltage in Gaussian 09 atomic units. Analogous to Coulomb's Constant.
+        float* integralMatrix;
+        integralMatrix = new float[nAtoms * nFluorines];
+        float alpha;
+        alpha = (((2.99792458f * 2.99792458f) * 1.602176487f) / (5.142206f)) * 0.1f; //Conversion factor to make calculation spit out voltage in Gaussian 09 atomic units. Analogous to Coulomb's Constant.
         cout << "Beginning electric field calculations using \"effective length\" treatment for non-uniform dielectric." << endl;
         for (int i = 0; i < fluorines.size(); i++)  //Cycle through each fluorine
         {
@@ -715,7 +715,7 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
         //Print back the electric field results
         {
 #ifdef OUTPUT_LOG
-            ofstream logfile("testout.log", ofstream::out);
+            ofstream logfile("C:\\Users\\Jon\\Desktop\\PFNMR\\logs\\testout.log", ofstream::out);
             cout << "Calculation results:" << endl;
             cout << "ChainId:\tResId:\tField-X:\tField-Y:\tField-Z:\tTotal:\tg09 Input:" << endl;
             logfile << "Calculation results:" << endl;
@@ -777,6 +777,7 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
 
             for (int i = 0; i < fluorinatedAAs.size(); i++)
             {
+				/*
                 //Build the coordinate template matrix
                 //TODO: This ONLY works with Phenylalanine.  Make this more universal with a look-up table for the coordinate indicies.
                 vector<vector<float>> coordtemplate;
@@ -850,16 +851,80 @@ int electricFieldCalculation(string pdbPath, const int res, const float inDielec
                 anglex *= (360.0f / (2.0f * M_PI));
                 angley *= (360.0f / (2.0f * M_PI));
                 anglez *= (360.0f / (2.0f * M_PI));
+				*/
 
+				//Time to construct the geometry vector for the residue
+				//Search through and find the fluorine
+				int fluorid = -1;
+				for (int j = 0; j < fluorinatedAAs[i].size(); ++j)
+				{
+					if (fluorinatedAAs[i][j].element == "F")
+					{
+						fluorid = j;
+						break;
+					}
+				}
+
+				if (fluorid == -1)
+				{
+					cout << "ERROR: Couldn't find fluorine for residue " << fluorinatedAAs[i][0].resSeq << endl;
+#ifdef OUTPUT_LOG
+					logfile << "ERROR: Couldn't find fluorine for residue " << fluorinatedAAs[i][0].resSeq << endl;
+#endif
+
+					continue;
+				}
+
+				//Find the carbon its bound to
+				auto shortestdist = 10000.0f;
+				int boundcarbon = -1;
+				for (int j = 0; j < fluorinatedAAs[i].size(); ++j)
+				{
+					if (fluorinatedAAs[i][j].element == "C")
+					{
+						auto currdist = sqrtf(((fluorinatedAAs[i][j].x - fluorinatedAAs[i][fluorid].x) * (fluorinatedAAs[i][j].x - fluorinatedAAs[i][fluorid].x)) +
+							((fluorinatedAAs[i][j].y - fluorinatedAAs[i][fluorid].y) * (fluorinatedAAs[i][j].y - fluorinatedAAs[i][fluorid].y)) +
+							((fluorinatedAAs[i][j].z - fluorinatedAAs[i][fluorid].z) * (fluorinatedAAs[i][j].z - fluorinatedAAs[i][fluorid].z)));
+						if (currdist < shortestdist)
+						{
+							shortestdist = currdist;
+							boundcarbon = j;
+						}
+					}
+				}
+
+				if (boundcarbon == -1)
+				{
+					cout << "ERROR: Couldn't find a carbon to bind to fluorine for residue " << fluorinatedAAs[i][0].resSeq << endl;
+#ifdef OUTPUT_LOG
+					logfile << "ERROR: Couldn't find a carbon to bind to fluorine for residue " << fluorinatedAAs[i][0].resSeq << endl;
+#endif
+					continue;
+				}
+
+				//Calculate the geometry vector
+				vector<float> geomvect = {
+					(fluorinatedAAs[i][fluorid].x - fluorinatedAAs[i][boundcarbon].x),
+					(fluorinatedAAs[i][fluorid].y - fluorinatedAAs[i][boundcarbon].y),
+					(fluorinatedAAs[i][fluorid].z - fluorinatedAAs[i][boundcarbon].z)
+				};
+				
+				//Calculate Euler angles
+				auto angles = generateGeometryRotationAnglesToX(geomvect);
+				angles[0] *= (360.0f / (2.0f * (float)M_PI));
+				angles[1] *= (360.0f / (2.0f * (float)M_PI));
+				angles[2] *= (360.0f / (2.0f * (float)M_PI));
 
                 //Get the NMR shift from the Monte Carlo fit equation
                 auto field = fluorines[i].getTotalField() * 10000.0f;
-                auto dielectric = calculateAverageDielectric(10000, 1.0f, plaingpuatoms, plaingpuatoms[fluorinesindicies[i]], variance, inDielectric, outDielectric);
-                auto nmr = pheNMR(anglex, angley, anglez, dielectric, field);
+                //auto dielectric = calculateAverageDielectric(10000, 1.0f, plaingpuatoms, plaingpuatoms[fluorinesindicies[i]], variance, inDielectric, outDielectric);
+				//For testing purposes, since this is acting funny
+				auto dielectric = 8.0f;
+                auto nmr = pheNMR(angles[0], angles[1], angles[2], dielectric, field);
                 output[i] = nmr;
-                cout << "Residue: " << fluorinatedAAs[i][0].resSeq << "\t(" << anglex << "," << angley << "," << anglez << "," << dielectric << "," << field << "):\t" << nmr << endl;
+                cout << "Residue: " << fluorinatedAAs[i][0].resSeq << "\t(" << angles[0] << "," << angles[1] << "," << angles[2] << "," << dielectric << "," << field << "):\t" << nmr << endl;
 #ifdef OUTPUT_LOG
-                logfile << "Residue: " << fluorinatedAAs[i][0].resSeq << "\t(" << anglex << "," << angley << "," << anglez << "," << dielectric << "," << field << "):\t" << nmr << endl;
+                logfile << "Residue: " << fluorinatedAAs[i][0].resSeq << "\t(" << angles[0] << "," << angles[1] << "," << angles[2] << "," << dielectric << "," << field << "):\t" << nmr << endl;
 #endif
                 output[i] = nmr;
             }
@@ -992,22 +1057,30 @@ int electricPotentialCalculation(string pdbPath, const int integralres, const in
         }
 
         // Calculate available memory
-        auto memdielectricmatrix = (actres * nAtoms * sizeof(float));
-        size_t freemem = (cudaFreeMem * 0.10f) - (nAtoms * sizeof(GPUChargeAtom)) - sizeof(GPUEFP) - memdielectricmatrix - (2 * nAtoms * sizeof(float));
+        unsigned long long memdielectricmatrix;
+        memdielectricmatrix = (actres * nAtoms * sizeof(float));
+        size_t freemem;
+        freemem = (cudaFreeMem * 0.10f) - (nAtoms * sizeof(GPUChargeAtom)) - sizeof(GPUEFP) - memdielectricmatrix - (2 * nAtoms * sizeof(float));
         if (freemem < 0)
         {
             cout << "Error: Not enough memory for this calculation!" << endl;
             return 1;
         }
-        int slicesperiter = floor(freemem / memdielectricmatrix);
-        int iterReq = round(nAtoms / slicesperiter + 0.5f);
-        int resopsperiter = slicesperiter * actres;
+        int slicesperiter;
+        slicesperiter = floor(freemem / memdielectricmatrix);
+        int iterReq;
+        iterReq = round(nAtoms / slicesperiter + 0.5f);
+        int resopsperiter;
+        resopsperiter = slicesperiter * actres;
 
         //Start doing the actual analysis using the Effective Length method for the non-uniform dielectric
-        auto integralMatrix = new float[nAtoms];
-        auto alpha = (((2.99792458f * 2.99792458f) * 1.602176487f) / (5.142206f)) * 0.1f; //Conversion factor to make calculation spit out voltage in Gaussian 09 atomic units. Analogous to Coulomb's Constant.
+        float* integralMatrix;
+        integralMatrix = new float[nAtoms];
+        float alpha;
+        alpha = (((2.99792458f * 2.99792458f) * 1.602176487f) / (5.142206f)) * 0.1f; //Conversion factor to make calculation spit out voltage in Gaussian 09 atomic units. Analogous to Coulomb's Constant.
         cout << "Beginning electric potential calculations using \"effective length\" treatment for non-uniform dielectric." << endl;
-        float* results = new float[nSlices * gridlen];
+        float* results;
+        results = new float[nSlices * gridlen];
         for (int slice = 0; slice < nSlices; slice++)  //Cycle through each fluorine
         {
             cout << "Processing slice " << slice + 1 << " of " << nSlices << endl;
@@ -1107,7 +1180,7 @@ int electricPotentialCalculation(string pdbPath, const int integralres, const in
     return 0;
 }
 
-void rotateResidueToXField(vector<float> & fieldVect, vector<Atom> residue)
+vector<float> rotateResidueToXField(vector<float> & fieldVect, vector<Atom> & residue)
 {
     //Ensure the field vector is a unit vector
     auto fieldMag = sqrtf((fieldVect[0] * fieldVect[0]) + (fieldVect[1] * fieldVect[1]) + (fieldVect[2] * fieldVect[2]));
@@ -1116,7 +1189,7 @@ void rotateResidueToXField(vector<float> & fieldVect, vector<Atom> residue)
     fieldVect[2] /= fieldMag;
 
     //Calculate the rotation matrix based on: http://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
-    auto scalar = (1 - fieldVect[0]) / ((fieldVect[2] * fieldVect[2]) + (fieldVect[1] * fieldVect[1]));
+    auto scalar = (1.0f - fieldVect[0]) / ((fieldVect[2] * fieldVect[2]) + (fieldVect[1] * fieldVect[1]));
     vector<vector<float>> rotmatrix
     {
         { 1.0f, fieldVect[1], fieldVect[2] },
@@ -1136,6 +1209,23 @@ void rotateResidueToXField(vector<float> & fieldVect, vector<Atom> residue)
             rotmatrix[i][j] += rightmatrix[i][j];
         }
     }
+
+	//Extract rotation parameters
+	vector<float> angles = {
+		atan2f(rotmatrix[2][1], rotmatrix[2][2]),
+		atan2f(-1.0 * rotmatrix[2][0], sqrtf((rotmatrix[2][1] * rotmatrix[2][1]) + (rotmatrix[2][2] * rotmatrix[2][2]))),
+		atan2f(rotmatrix[1][0], rotmatrix[0][0])
+	};
+
+#ifdef OUTPUT_LOG
+	vector<float> newfield
+	{
+		(rotmatrix[0][0] * fieldVect[0]) + (rotmatrix[0][1] * fieldVect[1]) + (rotmatrix[0][2] * fieldVect[2]),
+		(rotmatrix[1][0] * fieldVect[0]) + (rotmatrix[1][1] * fieldVect[1]) + (rotmatrix[1][2] * fieldVect[2]),
+		(rotmatrix[2][0] * fieldVect[0]) + (rotmatrix[2][1] * fieldVect[1]) + (rotmatrix[2][2] * fieldVect[2])
+	};
+	cout << "Rotated EField Vect: " << newfield[0] << ", " << newfield[1] << ", " << newfield[2] << endl;
+#endif
 
     //Apply the rotation matrix to the residue to spin it around the origin
     //TODO: Potentially have to convert coordinates to a unit vector set based on the fluorine atom position (its magnitude as the divisor)
@@ -1186,6 +1276,47 @@ void rotateResidueToXField(vector<float> & fieldVect, vector<Atom> residue)
         residue[i].y -= centerpoint[1];
         residue[i].z -= centerpoint[2];
     }
+
+	return angles;
+}
+
+vector<float> generateGeometryRotationAnglesToX(vector<float> & geomVec)
+{
+	//Ensure the field vector is a unit vector
+	auto fieldMag = sqrtf((geomVec[0] * geomVec[0]) + (geomVec[1] * geomVec[1]) + (geomVec[2] * geomVec[2]));
+	geomVec[0] /= fieldMag;
+	geomVec[1] /= fieldMag;
+	geomVec[2] /= fieldMag;
+
+	//Calculate the rotation matrix based on: http://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
+	auto scalar = (1.0f - geomVec[0]) / ((geomVec[2] * geomVec[2]) + (geomVec[1] * geomVec[1]));
+	vector<vector<float>> rotmatrix
+	{
+		{ 1.0f, -geomVec[1], -geomVec[2] },
+		{ geomVec[1], 1.0f, 0.0f },
+		{ geomVec[2], 0.0f, 1.0f }
+	};
+	vector<vector<float>> rightmatrix
+	{
+		{ (0.0f - (geomVec[1] * geomVec[1]) - (geomVec[2] * geomVec[2])) * scalar, 0.0f, 0.0f },
+		{ 0.0f, (0.0f - (geomVec[1] * geomVec[1])) * scalar, (0.0f - (geomVec[1] * geomVec[2])) * scalar },
+		{ 0.0f, (0.0f - (geomVec[1] * geomVec[2])) * scalar, (0.0f - (geomVec[2] * geomVec[2])) * scalar }
+	};
+	for (int i = 0; i < 3; i++)
+	{
+		for (int j = 0; j < 3; j++)
+		{
+			rotmatrix[i][j] += rightmatrix[i][j];
+		}
+	}
+
+	//Extract Euler angles
+	vector<float> angles = { 
+		atan2f(rotmatrix[2][1], rotmatrix[2][2]),
+		atan2f(-1.0 * rotmatrix[2][0], sqrtf((rotmatrix[2][1] * rotmatrix[2][1]) + (rotmatrix[2][2] * rotmatrix[2][2]))),
+		atan2f(rotmatrix[1][0], rotmatrix[0][0])
+	};
+	return angles;
 }
 
 float calculateAverageDielectric(int numpoints, float sphererad, vector<GPUAtom> atoms, GPUAtom & target, float variance, float inDielectric, float outDielectric)
@@ -1248,10 +1379,14 @@ float calculateAverageDielectric(int numpoints, float sphererad, vector<GPUAtom>
         goto noCUDA;
     }
 
-    auto densitygrid = new float[atoms.size() * spherepoints.size()];
-    auto gpuatoms = &atoms[0];
-    auto gpugrid = &spherepoints[0];
-    auto outdigrid = new float[spherepoints.size()];
+    float* densitygrid;
+    densitygrid = new float[atoms.size() * spherepoints.size()];
+    GPUAtom* gpuatoms;
+    gpuatoms = &atoms[0];
+    GridPoint* gpugrid;
+    gpugrid = &spherepoints[0];
+    float* outdigrid;
+    outdigrid = new float[spherepoints.size()];
 
     sliceDensityCudaIR(densitygrid, gpuatoms, gpugrid, variance, target.resid, atoms.size(), spherepoints.size(), deviceProp);
     if (cudaResult != cudaSuccess)
